@@ -213,3 +213,180 @@ def dashboard_pengajuan(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+    
+# Daftar Paket
+
+@csrf_exempt
+def list_package(request):
+    try:
+        validate_method(request, "GET")
+        with transaction.atomic():
+            
+            List_Paket = get_data(
+                table_name="tbl_packages",
+            )
+
+            return Response.ok(data=List_Paket, message="List data telah tampil", messagetype="S")
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+    
+@csrf_exempt
+def insert_package(request):
+    try:
+        validate_method(request, "POST")
+        with transaction.atomic():
+            json_data = json.loads(request.body)
+
+            required_fields = ["package_name", "duration", "price", "description"]
+            for field in required_fields:
+                if field not in json_data:
+                    return Response.badRequest(
+                        request,
+                        message=f"Field '{field}' wajib diisi",
+                        messagetype="E"
+                    )
+            
+            # Format tanggal (mungkin menggunakan waktu saat ini untuk created_at dan update_at)
+            now = datetime.now()
+
+            # Data yang akan di-insert ke tabel tbl_packages
+            data_to_insert = {
+                "package_name": json_data["package_name"],
+                "duration": json_data["duration"],
+                "price": json_data["price"],
+                "description": json_data["description"],
+                "created_at": now,
+                "update_at": now
+            }
+
+            # Insert data ke tabel tbl_packages dan ambil ID-nya
+            package_id = insert_get_id_data(
+                table_name="tbl_packages",
+                data=data_to_insert,
+                column_id="package_id"
+            )
+
+            return Response.ok(data={"package_id": package_id},message="Paket berhasil ditambahkan",messagetype="S")
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@csrf_exempt
+def update_package(request, package_id):
+    try:
+        validate_method(request, "PUT")
+        with transaction.atomic():
+            # Ambil data dari request body
+            json_data = json.loads(request.body)
+
+            # Validasi data
+            required_fields = ["package_name", "duration", "price", "description"]
+            for field in required_fields:
+                if field not in json_data:
+                    return Response.badRequest(
+                        request,
+                        message=f"Field '{field}' wajib diisi",
+                        messagetype="E"
+                    )
+
+            # Cek apakah package_id yang diberikan ada dalam database
+            existing_package = get_data(
+                table_name="tbl_packages",
+                filters={"package_id": package_id}
+            )
+            if not existing_package:
+                return Response.badRequest(
+                    request,
+                    message=f"Paket dengan ID {package_id} tidak ditemukan",
+                    messagetype="E"
+                )
+
+            # Format tanggal (update)
+            from datetime import datetime
+            now = datetime.now()
+
+            # Data yang akan di-update
+            data_to_update = {
+                "package_name": json_data["package_name"],
+                "duration": json_data["duration"],
+                "price": json_data["price"],
+                "description": json_data["description"],
+                "update_at": now
+            }
+
+            # Update data di tabel tbl_packages
+            update_data(
+                table_name="tbl_packages",
+                data=data_to_update,
+                filters={"package_id": package_id}
+            )
+
+            return Response.ok(
+                message=f"Paket dengan ID {package_id} berhasil diperbarui",
+                messagetype="S"
+            )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@csrf_exempt
+def delete_package(request, package_id):
+    try:
+        validate_method(request, "DELETE")
+        with transaction.atomic():
+            
+            delete_data(
+                table_name="tbl_packages",
+                filters={"package_id" : package_id }
+            )
+
+            return Response.ok(data=package_id, message=f"Delete data dengan ID {package_id} Berhasil", messagetype="S")
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+
+# Dashboard
+
+@csrf_exempt
+def dashboard_data_store(request):
+    try:
+        validate_method(request, "GET")
+        with transaction.atomic():
+            
+            search = request.GET.get("search", None)
+
+            list_toko_terdaftar = get_data(
+                table_name="tbl_store_owners",
+                search=search,
+                search_columns=["store_name"]
+            )
+
+            jumlah_toko_terdaftar = count_data(
+                table_name="tbl_store_owners",
+            )
+
+            jumlah_toko_terdaftar_aktif = count_data(
+                table_name="tbl_store_owners",
+                filters={"is_active" : True }
+            )
+            
+            jumlah_toko_terdaftar_tidak_aktif = count_data(
+                table_name="tbl_store_owners",
+                filters={"is_active" : False }
+            )
+
+            dashboard_data_store = {
+                "List_toko_terdaftar" : list_toko_terdaftar ,
+                "jumlah_toko_terdaftar" : jumlah_toko_terdaftar ,
+                "jumlah_toko_terdaftar_aktif" : jumlah_toko_terdaftar_aktif ,
+                "jumlah_toko_terdaftar_tidak_aktif" : jumlah_toko_terdaftar_tidak_aktif ,
+            }
+
+            return Response.ok(data=dashboard_data_store, message="List data telah tampil", messagetype="S")
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+ 
