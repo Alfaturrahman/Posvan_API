@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -33,7 +34,9 @@ ALLOWED_HOSTS = []
 INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'store_auth',  # Hanya aplikasi yang dibutuhkan, hapus aplikasi lainnya
+    'posvana_api',  # pastikan app ini terdaftar
+    'user_auth',     # jika ada app user_auth terpisah
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
@@ -44,6 +47,8 @@ MIDDLEWARE = [
     # 'django.contrib.auth.middleware.AuthenticationMiddleware',  # Dihapus karena tidak digunakan
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'posvana_api.middleware.auth_middleware.JWTAuthenticationMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'posvana_api.urls'
@@ -122,3 +127,16 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+JWT_SECRET = '9@zG#23wsA5$xJqVtYqP2g7^6RpL!!d7tL3fT9o6kDg5YsXK5nF9Dd2sK9Qz0M'
+JWT_ALGORITHM = 'HS256'
+JWT_EXP_DELTA_SECONDS = 3600  # Token berlaku 1 jam
+CORS_ALLOW_ALL_ORIGINS = True  # Untuk development saja!
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Replace with your frontend URL
+    "https://your-frontend.com",  # Add your production frontend URL here
+]
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
