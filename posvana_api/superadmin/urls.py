@@ -6,4 +6,5 @@ urlpatterns = [
     path('detail_store_owners/', views.detail_store_owners, name='detail_store_owners'),
     path('validate_store_owner/', views.validate_store_owner, name='validate_store_owner'),
     path('verify_payment/', views.verify_payment, name='verify_payment'),
+    path('dashboard_pengajuan/', views.dashboard_pengajuan, name='dashboard_pengajuan'),
 ]

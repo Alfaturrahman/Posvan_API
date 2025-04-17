@@ -12,22 +12,56 @@ from common.transaction_helper import *
 from posvana_api.utils.jwt_helper import generate_jwt_token
 import re
 
+#Pengajuan Toko (SUPERADMIN)
+
 @csrf_exempt
 def show_store_owners(request):
     try:
         validate_method(request, "GET")
         with transaction.atomic():
-            
-            show_store_owners = get_data(
+
+            status_param = request.GET.get("status")
+            tanggal_param = request.GET.get("tanggal")  
+
+            filters = {}
+
+            status_mapping = {
+                "Selesai": "Accepted",
+                "Diproses": "In Progress",
+                "Ditolak": "Rejected"
+            }
+
+            if status_param and status_param != "Semua Status":
+                mapped_status = status_mapping.get(status_param)
+                if mapped_status:
+                    filters["account_status"] = mapped_status
+
+            tanggal_param = request.GET.get("tanggal")
+            if tanggal_param:
+                try:
+                    tanggal_obj = datetime.strptime(tanggal_param, "%m/%d/%Y").date()
+                    filters["DATE(created_at)"] = tanggal_obj  # 
+                except ValueError:
+                    pass  
+
+            store_owners = get_data(
                 table_name="tbl_store_owners",
+                filters=filters
             )
 
-            paginated_store_owner = paginate_data(request, show_store_owners)
+            return Response.ok(
+                data=store_owners,
+                message="List data telah tampil",
+                messagetype="S"
+            )
 
-            return Response.ok(data=paginated_store_owner, message="List data telah tampil", messagetype="S")
     except Exception as e:
         log_exception(request, e)
-        return Response.badRequest(request, message=str(e), messagetype="E")
+        return Response.badRequest(
+            request,
+            message=str(e),
+            messagetype="E"
+        )
     
 @csrf_exempt
 def detail_store_owners(request):
@@ -65,7 +99,7 @@ def validate_store_owner(request):
         update_data(
             table_name="tbl_store_owners",
             data={
-                "account_status": "Sudah Divalidasi",
+                "account_status": "Accepted",
                 "update_at": timezone.now()
             },
             filters={"store_id": store_id}
@@ -144,3 +178,38 @@ def verify_payment(request):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@csrf_exempt
+def dashboard_pengajuan(request):
+    try:
+        validate_method(request, "GET")
+        with transaction.atomic():
+            
+            total_pengajuan = count_data(
+                table_name="tbl_store_owners",
+            )
+            total_diproses = count_data(
+                table_name="tbl_store_owners",
+                filters={"account_status" : "In Progress" }
+            )
+
+            total_diterima = count_data(
+                table_name="tbl_store_owners",
+                filters={"account_status" : "Accepted" }
+            )
+            
+            total_ditolak = count_data(
+                table_name="tbl_store_owners",
+                filters={"account_status" : "Rejected" }
+            )
+
+            result = {
+                "total_pengajuan": total_pengajuan,
+                "total_diproses": total_diproses,
+                "total_diterima": total_diterima,
+                "total_ditolak": total_ditolak,
+            }
+
+            return Response.ok(data=result, message="List data telah tampil", messagetype="S")
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
