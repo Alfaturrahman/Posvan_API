@@ -140,3 +140,13 @@ CORS_ALLOWED_ORIGINS = [
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587  # atau 465 kalau mau pakai SSL
+EMAIL_USE_TLS = True  # atau False kalau pakai SSL
+EMAIL_USE_SSL = False  # True kalau pakai port 465
+EMAIL_HOST_USER = 'angkringanomahmu@gmail.com'
+EMAIL_HOST_PASSWORD = 'rbpcpktzmjkroxqq'  # Ini adalah App Password dari Google
+
+

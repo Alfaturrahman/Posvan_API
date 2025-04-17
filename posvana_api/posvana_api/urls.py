@@ -21,6 +21,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     # path('admin/', admin.site.urls),
     path('api/user_auth/', include('user_auth.urls')),
+    path('api/superadmin/', include('superadmin.urls')),
 ]
 
 # Hanya untuk development
