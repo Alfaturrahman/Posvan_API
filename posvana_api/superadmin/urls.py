@@ -10,6 +10,7 @@ urlpatterns = [
     path('dashboard_pengajuan/', views.dashboard_pengajuan, name='dashboard_pengajuan'),
     # Page Daftar Paket 
     path('list_package/', views.list_package, name='list_package'),
+    path('list_master_features/', views.list_master_features, name='list_master_features'),
     path('insert_package/', views.insert_package, name='insert_package'),
     path('update_package/<int:package_id>/', views.update_package, name='update_package'),
     path('delete_package/<int:package_id>/', views.delete_package, name='delete_package'),

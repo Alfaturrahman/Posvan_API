@@ -347,6 +347,21 @@ def delete_package(request, package_id):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@csrf_exempt
+def list_master_features(request):
+    try:
+        validate_method(request, "GET")
+        with transaction.atomic():
+            
+            List_Paket = get_data(
+                table_name="tbl_masters_features",
+            )
+
+            return Response.ok(data=List_Paket, message="List data telah tampil", messagetype="S")
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
 
 # Dashboard
 
@@ -389,4 +404,5 @@ def dashboard_data_store(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+
  
