@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-==m#-ekn!_4^g#=xa!+_u608$w*1uhg*osg)tp+1i)8)zoj!ka
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['posvanapi-production.up.railway.app', 'localhost']
+ALLOWED_HOSTS = ['*']  # Hanya untuk sementara saat debug!
 
 # Application definition
 
@@ -134,12 +134,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 JWT_SECRET = '9@zG#23wsA5$xJqVtYqP2g7^6RpL!!d7tL3fT9o6kDg5YsXK5nF9Dd2sK9Qz0M'
 JWT_ALGORITHM = 'HS256'
 JWT_EXP_DELTA_SECONDS = 3600  # Token berlaku 1 jam
-CORS_ALLOW_ALL_ORIGINS = True  # Untuk development saja!
+CORS_ALLOW_ALL_ORIGINS = False  # Untuk development saja!
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Replace with your frontend URL
     "https://your-frontend.com",  # Add your production frontend URL here
-    "posvanapi-production.up.railway.app",
+    'https://posvanapi-production.up.railway.app',  # ✅ Tambahkan https://
 ]
 
 MEDIA_URL = '/media/'
