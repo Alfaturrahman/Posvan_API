@@ -1,1 +1,1 @@
-web: gunicorn posvana_api.wsgi:application
+web: gunicorn posvana_api.posvana_api.wsgi:application
