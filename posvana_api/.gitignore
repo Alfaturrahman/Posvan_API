@@ -1,0 +1,10 @@
+# Virtual environment
+venv/
+
+# .env file untuk environment variables
+.env
+
+# File lainnya yang mungkin tidak perlu
+*.pyc
+__pycache__/
+*.log

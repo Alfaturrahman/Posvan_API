@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-==m#-ekn!_4^g#=xa!+_u608$w*1uhg*osg)tp+1i)8)zoj!ka'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = []
 
@@ -74,14 +75,16 @@ WSGI_APPLICATION = 'posvana_api.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'angkringan_pos',  # Nama database
-        'USER': 'postgres',        # Default user PostgreSQL (kalau belum diubah)
-        'PASSWORD': 'Faturzzz01',  # Password PostgreSQL kamu
-        'HOST': 'localhost',       # Karena kamu pakai PostgreSQL lokal
-        'PORT': '5432',            # Default port PostgreSQL
-    }
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.postgresql',
+    #     'NAME': 'angkringan_pos',  # Nama database
+    #     'USER': 'postgres',        # Default user PostgreSQL (kalau belum diubah)
+    #     'PASSWORD': 'Faturzzz01',  # Password PostgreSQL kamu
+    #     'HOST': 'localhost',       # Karena kamu pakai PostgreSQL lokal
+    #     'PORT': '5432',            # Default port PostgreSQL
+    # },
+    'default': dj_database_url.config(default='postgresql://postgres:kusjvrMsDsAluhcPwyVVPXIxnvlDSJXo@maglev.proxy.rlwy.net:59215/railway')
+
 }
 
 
@@ -122,6 +125,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
