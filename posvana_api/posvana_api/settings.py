@@ -27,8 +27,7 @@ SECRET_KEY = 'django-insecure-==m#-ekn!_4^g#=xa!+_u608$w*1uhg*osg)tp+1i)8)zoj!ka
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ['posvanapi-production.up.railway.app', 'localhost']
 
 # Application definition
 
@@ -140,6 +139,7 @@ CORS_ALLOW_ALL_ORIGINS = True  # Untuk development saja!
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Replace with your frontend URL
     "https://your-frontend.com",  # Add your production frontend URL here
+    "posvanapi-production.up.railway.app",
 ]
 
 MEDIA_URL = '/media/'
