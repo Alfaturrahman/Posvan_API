@@ -1,5 +1,6 @@
 # Virtual environment
 venv/
+venv-wsl/
 
 # .env file untuk environment variables
 .env
