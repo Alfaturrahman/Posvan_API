@@ -9,4 +9,7 @@ urlpatterns = [
     path('update_produk/<int:product_id>/', views.update_produk, name='update_produk'),
     path('delete_produk/<int:product_id>/', views.delete_produk, name='delete_produk'),
     
+    # Page Menu
+    path('daftar_menu/', views.daftar_menu, name='daftar_menu'),
+    
 ]

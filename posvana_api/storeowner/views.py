@@ -208,3 +208,28 @@ def summary_produk(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+
+#Daftar Menu (STORE OWNER)
+
+@csrf_exempt
+def daftar_menu(request):
+    try:
+        validate_method(request, "GET")
+        with transaction.atomic():
+            store_id = request.GET.get("store_id")
+
+            if not store_id:
+                return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
+
+            daftar_menu = execute_query(
+                """
+                    SELECT * FROM public.view_product_list where store_id = %s;
+                """,
+                params=(store_id,)  
+            )
+
+            return Response.ok(data=daftar_menu, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
