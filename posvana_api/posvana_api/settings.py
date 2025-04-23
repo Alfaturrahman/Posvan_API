@@ -82,10 +82,9 @@ DATABASES = {
     #     'HOST': 'localhost',       # Karena kamu pakai PostgreSQL lokal
     #     'PORT': '5432',            # Default port PostgreSQL
     # },
-    'default': dj_database_url.config(default='postgresql://postgres:kusjvrMsDsAluhcPwyVVPXIxnvlDSJXo@maglev.proxy.rlwy.net:59215/railway')
+    'default': dj_database_url.config(default='postgresql://postgres:zMgJOAZHGBMSXLZwjzfyrhHxXqSmjVcp@shuttle.proxy.rlwy.net:53892/railway')
 
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

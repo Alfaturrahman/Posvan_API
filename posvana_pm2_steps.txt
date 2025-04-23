@@ -1,0 +1,89 @@
+
+Langkah-langkah untuk Mengelola Aplikasi Django dengan PM2 dan Gunicorn:
+
+1. **Masuk ke Folder Aplikasi**
+   - Masuk ke folder proyek di terminal:
+     cd /mnt/c/Users/test/Desktop/Posvana-API/posvana_api
+
+
+2. **Aktifkan Virtual Environment (Jika Menggunakan Virtualenv)**
+   - Jika kamu menggunakan **virtual environment (venv)** untuk proyek kamu, aktifkan environment-nya:
+     source venv-wsl/bin/activate
+
+
+3. **Install Gunicorn dan PM2**
+   - Install **Gunicorn** dan **PM2** jika belum terpasang:
+     pip install gunicorn
+     npm install -g pm2
+
+
+4. **Mulai PM2 dengan Gunicorn untuk Menjalankan Aplikasi Django**
+   - Jalankan aplikasi Django menggunakan **Gunicorn** di **PM2** dengan jumlah worker yang sesuai. Contoh, menjalankan aplikasi dengan **4 worker**:
+    pm2 start "gunicorn --workers 4 --bind 0.0.0.0:8000 posvana_api.wsgi:application" --name posvana-api --interpreter python3
+
+
+5. **Menambahkan PM2 untuk Auto-Restart**
+   - Untuk memastikan aplikasi kamu tetap berjalan dan otomatis restart jika ada perubahan atau saat server reboot, gunakan opsi berikut:
+     pm2 start gunicorn --name posvana-api --interpreter python3 -- gunicorn --workers 25 --bind 0.0.0.0:8000 posvana_api.wsgi:application --watch
+
+   - Agar aplikasi otomatis restart setelah server reboot:
+     pm2 startup
+     pm2 save
+
+
+6. **Memantau dan Mengelola PM2**
+   - Memantau status aplikasi yang berjalan:
+     pm2 status
+
+     kalau mau pake monitor
+      pm2 monitor
+
+    lihat list yang jalan 
+    pm2 list
+
+   - Melihat log aplikasi:
+     pm2 logs posvana-api
+
+   - Memulai aplikasi jika PM2 berhenti:
+     pm2 start posvana-api
+
+   - Menghentikan aplikasi:
+     pm2 stop posvana-api
+
+   - Menghentikan semua aplikasi PM2:
+     pm2 stop all
+
+     cek worker pm2
+     pm2 show posvana-api
+
+     cek worker gunicorn
+     ps aux | grep gunicorn
+
+7. **Cluster Mode (Opsional)**
+   - Jika kamu ingin menjalankan aplikasi dengan menggunakan **Cluster Mode** untuk memanfaatkan banyak core CPU, jalankan:
+     pm2 start gunicorn --name posvana-api -- gunicorn --workers 4 --bind 0.0.0.0:8000 posvana_api.wsgi:application -i max
+
+   - `-i max`: Menjalankan sebanyak **jumlah core CPU** yang tersedia di server.
+
+8. **Restart atau Reload PM2 Instance (Opsional)**
+   - Untuk me-restart aplikasi:
+     pm2 restart posvana-api
+
+   - Untuk reload aplikasi tanpa memutuskan koneksi:
+     pm2 reload posvana-api
+
+
+9. **Menghentikan Semua PM2 Instance dan Gunicorn**
+   - Jika kamu ingin menghentikan semua instance yang berjalan:
+     pm2 stop all
+     pm2 delete all
+
+
+10. **Hentikan PM2 (Opsional)** 
+   - Untuk menghentikan **semua instance PM2** dan keluar:
+     pm2 kill
+
+Jumlah Workers Optimal
+=
+Jumlah Core CPU × 2 + 1
+Jumlah Workers Optimal= Jumlah Core CPU×2+1
