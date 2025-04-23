@@ -233,3 +233,64 @@ def daftar_menu(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+
+#Riwayat Pesanan (STORE OWNER)
+
+@csrf_exempt
+def riwayat_pesanan(request):
+    try:
+        validate_method(request, "GET")
+
+        tanggal = request.GET.get("tanggal")
+        status = request.GET.get("status")
+        search = request.GET.get("search")
+
+        filters_ditempat = {"is_dine_in": True, "is_pre_order": False}
+        filters_online = {"is_dine_in": False, "is_pre_order": True}
+
+        if tanggal:
+            filters_ditempat["created_at"] = tanggal
+            filters_online["created_at"] = tanggal
+
+        if status:
+            filters_ditempat["order_status"] = status
+            filters_online["order_status"] = status
+
+        riwayat_pesanan_ditempat = get_data("tbl_orders", filters=filters_ditempat,search=search,search_columns=['order_status','order_code'])
+        riwayat_pesanan_online = get_data("tbl_orders", filters=filters_online,search=search,search_columns=['order_status','order_code'])
+
+        riwayat_pesanan = {
+            "riwayat_pesanan_ditempat": riwayat_pesanan_ditempat,
+            "riwayat_pesanan_online": riwayat_pesanan_online,
+        }
+
+        return Response.ok(data=riwayat_pesanan, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+#Riwayat Detail Pesanan (STORE OWNER)
+
+@csrf_exempt
+def riwayat_detail_pesanan(request):
+    try:
+        validate_method(request, "GET")
+        with transaction.atomic():
+            store_code = request.GET.get("store_code")
+
+            if not store_code:
+                return Response.badRequest(request, message="store_code harus disertakan", messagetype="E")
+
+            riwayat_detail_pesanan = execute_query(
+                """
+                    SELECT get_order_json(%s);
+                """,
+                params=(store_code,)  # <- ini beneran tuple
+            )
+
+            return Response.ok(data=riwayat_detail_pesanan, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
