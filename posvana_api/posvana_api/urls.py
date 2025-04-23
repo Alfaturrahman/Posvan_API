@@ -22,6 +22,7 @@ urlpatterns = [
     # path('admin/', admin.site.urls),
     path('api/user_auth/', include('user_auth.urls')),
     path('api/superadmin/', include('superadmin.urls')),
+    path('api/storeowner/', include('storeowner.urls')),
 ]
 
 # Hanya untuk development
