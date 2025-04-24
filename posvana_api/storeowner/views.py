@@ -14,6 +14,65 @@ import re
 from django.http.multipartparser import MultiPartParser
 
 
+
+#Dashboard (STORE OWNER)
+
+@csrf_exempt
+def dashboard(request):
+    try:
+        validate_method(request, "GET")
+        with transaction.atomic():
+            store_id = request.GET.get("store_id")
+
+            if not store_id:
+                return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
+
+            today = datetime.today()
+            year = int(request.GET.get("year", today.year))
+            month = int(request.GET.get("month", today.month))
+            day = int(request.GET.get("day", today.day))
+
+            dashboard_monthly = execute_query(
+                """
+                    SELECT * FROM summary_dashboard_monthly(%s);
+                """,
+                params=(store_id,)
+            )
+            dashboard_yearly = execute_query(
+                """
+                    SELECT * FROM public.summary_dashboard_yearly(%s, %s);
+                """,
+                params=(store_id, year)
+            )
+            dashboard_daily = execute_query(
+                """
+                    SELECT * FROM summary_dashboard_daily(%s, %s, %s);
+                """,
+                params=(day, month, year)
+            )
+            dashboard_presentase = execute_query(
+                """
+                    SELECT * 
+                    FROM summary_dashboard_persentase
+                    WHERE store_id = %s
+                    AND bulan = DATE %s;
+                """,
+                params=(store_id, f"{year}-{month:02d}-01")
+            )
+
+            dashboard = {
+                "dashboard_monthly": dashboard_monthly,
+                "dashboard_yearly": dashboard_yearly,
+                "dashboard_daily": dashboard_daily,
+                "dashboard_presentase": dashboard_presentase,
+            }
+
+            return Response.ok(data=dashboard, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
 #Laporan Keuntungan (STORE OWNER)
 
 @csrf_exempt
