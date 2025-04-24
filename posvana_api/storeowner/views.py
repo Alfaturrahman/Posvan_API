@@ -343,6 +343,9 @@ def riwayat_pesanan(request):
 
         riwayat_pesanan_ditempat = get_data("tbl_orders", filters=filters_ditempat,search=search,search_columns=['order_status','order_code'])
         riwayat_pesanan_online = get_data("tbl_orders", filters=filters_online,search=search,search_columns=['order_status','order_code'])
+        
+        riwayat_pesanan_ditempat= paginate_data(request,riwayat_pesanan_ditempat)
+        riwayat_pesanan_online= paginate_data(request,riwayat_pesanan_online)
 
         riwayat_pesanan = {
             "riwayat_pesanan_ditempat": riwayat_pesanan_ditempat,

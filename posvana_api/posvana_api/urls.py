@@ -23,6 +23,7 @@ urlpatterns = [
     path('api/user_auth/', include('user_auth.urls')),
     path('api/superadmin/', include('superadmin.urls')),
     path('api/storeowner/', include('storeowner.urls')),
+    path('api/customer/', include('customer.urls')),
 ]
 
 # Hanya untuk development
