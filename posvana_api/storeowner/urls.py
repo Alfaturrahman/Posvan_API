@@ -2,6 +2,8 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # Laporan Keuntungan
+    path('laporan_keutungan/', views.laporan_keutungan, name='laporan_keutungan'),
     # Page Produk
     path('daftar_produk/', views.daftar_produk, name='daftar_produk'),
     path('summary_produk/', views.summary_produk, name='summary_produk'),

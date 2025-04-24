@@ -13,6 +13,32 @@ from posvana_api.utils.jwt_helper import generate_jwt_token
 import re
 from django.http.multipartparser import MultiPartParser
 
+
+#Laporan Keuntungan (STORE OWNER)
+
+@csrf_exempt
+def laporan_keutungan(request):
+    try:
+        validate_method(request, "GET")
+        with transaction.atomic():
+            store_id = request.GET.get("store_id")
+
+            if not store_id:
+                return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
+
+            laporan_keutungan = execute_query(
+                """
+                    SELECT * FROM summary_laporan_keuntungan(%s);
+                """,
+                params=(store_id,)  
+            )
+
+            return Response.ok(data=laporan_keutungan, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
 #Produk (STORE OWNER)
 
 @csrf_exempt
