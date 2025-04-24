@@ -1,7 +1,11 @@
 # utils/jwt_helper.py
+
 import jwt
 import datetime
+from functools import wraps
 from django.conf import settings
+from django.http import JsonResponse
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 def generate_jwt_token(user_data):
     payload = {
@@ -17,7 +21,36 @@ def generate_jwt_token(user_data):
 def decode_jwt_token(token):
     try:
         return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-    except jwt.ExpiredSignatureError:
-        raise Exception("Token has expired")
-    except jwt.InvalidTokenError:
-        raise Exception("Invalid token")
+    except ExpiredSignatureError:
+        raise Exception("Token sudah kedaluwarsa")
+    except InvalidTokenError:
+        raise Exception("Token tidak valid")
+
+def jwt_required(view_func):
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return JsonResponse({
+                "status_code": 401,
+                "message": "Authorization token tidak ditemukan",
+                "messagetype": "E"
+            }, status=401)
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            user_data = decode_jwt_token(token)
+        except Exception as e:
+            return JsonResponse({
+                "status_code": 401,
+                "message": str(e),
+                "messagetype": "E"
+            }, status=401)
+
+        # Inject ke request.user agar natural digunakan di view
+        request.user = user_data
+
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped_view

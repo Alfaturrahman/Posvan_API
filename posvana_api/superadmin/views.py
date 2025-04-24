@@ -9,11 +9,12 @@ from datetime import datetime
 from django.utils import timezone   
 from common.pagination_helper import paginate_data
 from common.transaction_helper import *
-from posvana_api.utils.jwt_helper import generate_jwt_token
+from posvana_api.utils.jwt_helper import *
 import re
 
 #Pengajuan Toko (SUPERADMIN)
 
+@jwt_required
 @csrf_exempt
 def show_store_owners(request):
     try:
@@ -62,7 +63,8 @@ def show_store_owners(request):
             message=str(e),
             messagetype="E"
         )
-    
+
+@jwt_required
 @csrf_exempt
 def detail_store_owners(request):
     try:
@@ -81,7 +83,8 @@ def detail_store_owners(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
-    
+
+@jwt_required
 @csrf_exempt
 def validate_store_owner(request):
     try:
@@ -144,6 +147,7 @@ def send_email(to, subject, message):
         fail_silently=False,
     )
 
+@jwt_required
 @csrf_exempt
 def verify_payment(request):
     try:
@@ -178,6 +182,7 @@ def verify_payment(request):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@jwt_required
 @csrf_exempt
 def dashboard_pengajuan(request):
     try:
@@ -216,6 +221,7 @@ def dashboard_pengajuan(request):
     
 # Daftar Paket
 
+@jwt_required
 @csrf_exempt
 def list_package(request):
     try:
@@ -230,7 +236,8 @@ def list_package(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
-    
+
+@jwt_required
 @csrf_exempt
 def insert_package(request):
     try:
@@ -272,6 +279,7 @@ def insert_package(request):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@jwt_required
 @csrf_exempt
 def update_package(request, package_id):
     try:
@@ -331,6 +339,7 @@ def update_package(request, package_id):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@jwt_required
 @csrf_exempt
 def delete_package(request, package_id):
     try:
@@ -347,6 +356,7 @@ def delete_package(request, package_id):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@jwt_required
 @csrf_exempt
 def list_master_features(request):
     try:
@@ -365,6 +375,7 @@ def list_master_features(request):
 
 # Dashboard
 
+@jwt_required
 @csrf_exempt
 def dashboard_data_store(request):
     try:

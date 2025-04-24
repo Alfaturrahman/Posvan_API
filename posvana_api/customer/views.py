@@ -9,7 +9,7 @@ from datetime import datetime
 from django.utils import timezone   
 from common.pagination_helper import paginate_data
 from common.transaction_helper import *
-from posvana_api.utils.jwt_helper import generate_jwt_token
+from posvana_api.utils.jwt_helper import jwt_required
 import re
 from django.http.multipartparser import MultiPartParser
 
@@ -17,11 +17,14 @@ from django.http.multipartparser import MultiPartParser
 
 #Dashboard (STORE OWNER)
 
+@jwt_required
 @csrf_exempt
 def data_toko(request):
     try:
         validate_method(request, "GET")
         with transaction.atomic():
+            user = request.user  
+            email = request.user.get("email")
 
             data_toko = execute_query(
                 """

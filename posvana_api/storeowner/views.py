@@ -9,7 +9,7 @@ from datetime import datetime
 from django.utils import timezone   
 from common.pagination_helper import paginate_data
 from common.transaction_helper import *
-from posvana_api.utils.jwt_helper import generate_jwt_token
+from posvana_api.utils.jwt_helper import *
 import re
 from django.http.multipartparser import MultiPartParser
 
@@ -17,6 +17,7 @@ from django.http.multipartparser import MultiPartParser
 
 #Dashboard (STORE OWNER)
 
+@jwt_required
 @csrf_exempt
 def dashboard(request):
     try:
@@ -75,6 +76,7 @@ def dashboard(request):
 
 #Laporan Keuntungan (STORE OWNER)
 
+@jwt_required
 @csrf_exempt
 def laporan_keutungan(request):
     try:
@@ -100,6 +102,7 @@ def laporan_keutungan(request):
 
 #Produk (STORE OWNER)
 
+@jwt_required
 @csrf_exempt
 def daftar_produk(request):
     try:
@@ -131,6 +134,7 @@ def daftar_produk(request):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@jwt_required
 @csrf_exempt
 def insert_produk(request):
     try:
@@ -187,6 +191,7 @@ def insert_produk(request):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@jwt_required
 @csrf_exempt
 def update_produk(request, product_id):
     try:
@@ -255,6 +260,7 @@ def update_produk(request, product_id):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@jwt_required
 @csrf_exempt
 def delete_produk(request, product_id):
     try:
@@ -271,6 +277,7 @@ def delete_produk(request, product_id):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@jwt_required
 @csrf_exempt
 def summary_produk(request):
     try:
@@ -296,6 +303,7 @@ def summary_produk(request):
 
 #Daftar Menu (STORE OWNER)
 
+@jwt_required
 @csrf_exempt
 def daftar_menu(request):
     try:
@@ -321,6 +329,7 @@ def daftar_menu(request):
 
 #Riwayat Pesanan (STORE OWNER)
 
+@jwt_required
 @csrf_exempt
 def riwayat_pesanan(request):
     try:
@@ -360,6 +369,7 @@ def riwayat_pesanan(request):
 
 #Riwayat Detail Pesanan (STORE OWNER)
 
+@jwt_required
 @csrf_exempt
 def riwayat_detail_pesanan(request):
     try:
