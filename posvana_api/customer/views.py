@@ -13,8 +13,6 @@ from posvana_api.utils.jwt_helper import jwt_required
 import re
 from django.http.multipartparser import MultiPartParser
 
-
-
 #Dashboard (STORE OWNER)
 
 @jwt_required

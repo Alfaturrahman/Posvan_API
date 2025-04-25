@@ -6,6 +6,7 @@ from django.db import connection, transaction
 from posvana_api.response import Response  # pastikan ini sesuai path
 from django.core.files.storage import FileSystemStorage  # Importing FileSystemStorage
 from datetime import datetime
+import datetime
 from django.utils import timezone   
 from common.pagination_helper import paginate_data
 from common.transaction_helper import *
@@ -225,7 +226,6 @@ def dashboard_pengajuan(request):
 @csrf_exempt
 def list_package(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
             
             List_Paket = get_data(
@@ -244,6 +244,7 @@ def insert_package(request):
         validate_method(request, "POST")
         with transaction.atomic():
             json_data = json.loads(request.body)
+            user_id = request.user.get("user_id")
 
             required_fields = ["package_name", "duration", "price", "description"]
             for field in required_fields:
@@ -255,16 +256,17 @@ def insert_package(request):
                     )
             
             # Format tanggal (mungkin menggunakan waktu saat ini untuk created_at dan update_at)
-            now = datetime.now()
+            now = timezone.now()
 
             # Data yang akan di-insert ke tabel tbl_packages
             data_to_insert = {
+                "user_id" : user_id,
                 "package_name": json_data["package_name"],
                 "duration": json_data["duration"],
                 "price": json_data["price"],
                 "description": json_data["description"],
-                "created_at": now,
-                "update_at": now
+                "created_at":  now,
+                "update_at": now,
             }
 
             # Insert data ke tabel tbl_packages dan ambil ID-nya
@@ -311,8 +313,7 @@ def update_package(request, package_id):
                 )
 
             # Format tanggal (update)
-            from datetime import datetime
-            now = datetime.now()
+            now = datetime.datetime.now()
 
             # Data yang akan di-update
             data_to_update = {
@@ -343,7 +344,6 @@ def update_package(request, package_id):
 @csrf_exempt
 def delete_package(request, package_id):
     try:
-        validate_method(request, "DELETE")
         with transaction.atomic():
             
             delete_data(
@@ -372,14 +372,12 @@ def list_master_features(request):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
-
 # Dashboard
 
 @jwt_required
 @csrf_exempt
 def dashboard_data_store(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
             
             search = request.GET.get("search", None)
