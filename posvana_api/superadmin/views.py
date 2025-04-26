@@ -6,7 +6,6 @@ from django.db import connection, transaction
 from posvana_api.response import Response  # pastikan ini sesuai path
 from django.core.files.storage import FileSystemStorage  # Importing FileSystemStorage
 from datetime import datetime
-import datetime
 from django.utils import timezone   
 from common.pagination_helper import paginate_data
 from common.transaction_helper import *
@@ -19,7 +18,6 @@ import re
 @csrf_exempt
 def show_store_owners(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
 
             status_param = request.GET.get("status")
@@ -41,7 +39,7 @@ def show_store_owners(request):
             tanggal_param = request.GET.get("tanggal")
             if tanggal_param:
                 try:
-                    tanggal_obj = datetime.strptime(tanggal_param, "%m/%d/%Y").date()
+                    tanggal_obj = datetime.datetime.strptime(tanggal_param, "%m/%d/%Y").date()
                     filters["DATE(created_at)"] = tanggal_obj  # 
                 except ValueError:
                     pass  
@@ -69,14 +67,13 @@ def show_store_owners(request):
 @csrf_exempt
 def detail_store_owners(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
 
             store_id = request.GET.get("store_id")
 
             print(store_id)
             
-            detail_store_owners = get_data(
+            detail_store_owners = first_data(
                 table_name="tbl_store_owners",
                 filters={"store_id" : store_id}
             )
@@ -89,11 +86,18 @@ def detail_store_owners(request):
 @csrf_exempt
 def validate_store_owner(request):
     try:
-        validate_method(request, "PUT")
         store_id = request.GET.get("store_id")
+        status = request.GET.get("status")  # Menambahkan status
 
         if not store_id:
             return Response.badRequest(request, message="store_id wajib diisi", messagetype="E")
+
+        if not status:
+            return Response.badRequest(request, message="status wajib diisi", messagetype="E")
+
+        # Pastikan status yang diterima adalah "Done" atau "Reject"
+        if status not in ["Done", "Reject"]:
+            return Response.badRequest(request, message="status tidak valid", messagetype="E")
 
         # Check if data exists
         if not exists_data(table_name="tbl_store_owners", filters={"store_id": store_id}):
@@ -103,37 +107,35 @@ def validate_store_owner(request):
         update_data(
             table_name="tbl_store_owners",
             data={
-                "account_status": "Accepted",
+                "account_status": status,  # Mengubah status sesuai parameter
                 "update_at": timezone.now()
             },
             filters={"store_id": store_id}
         )
 
-        # Ambil email dan virtual account
-        owner_data = get_data(
-            table_name="tbl_store_owners",
-            filters={"store_id": store_id}
-        )
+        # Ambil email dan virtual account jika diterima
+        if status == "Done":
+            owner_data = get_data(
+                table_name="tbl_store_owners",
+                filters={"store_id": store_id}
+            )
 
-        if not owner_data:
-            return Response.badRequest(request, message="Data store owner tidak ditemukan", messagetype="E")
+            if not owner_data:
+                return Response.badRequest(request, message="Data store owner tidak ditemukan", messagetype="E")
 
-        # Ambil data pertama dari list
-        owner_data = owner_data[0]
+            # Ambil data pertama dari list
+            owner_data = owner_data[0]
+            email = owner_data.get("email")
+            virtual_account = owner_data.get("no_virtual_account")
 
-        email = owner_data.get("email")
-        virtual_account = owner_data.get("no_virtual_account")
+            # Kirim email (dummy send_email function)
+            send_email(
+                to=email,
+                subject="Virtual Account Anda",
+                message=f"Terima kasih, akun Anda telah divalidasi.\nBerikut nomor virtual account Anda: {virtual_account}"
+            )
 
-        print(email,virtual_account)
-
-        # Kirim email (dummy send_email function)
-        send_email(
-            to=email,
-            subject="Virtual Account Anda",
-            message=f"Terima kasih, akun Anda telah divalidasi.\nBerikut nomor virtual account Anda: {virtual_account}"
-        )
-
-        return Response.ok(message="Akun berhasil divalidasi & email VA telah dikirim", messagetype="S")
+        return Response.ok(message=f"Akun berhasil {status.lower()} & email VA telah dikirim" if status == "Done" else "Akun berhasil ditolak", messagetype="S")
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
