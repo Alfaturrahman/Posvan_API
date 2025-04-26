@@ -11,6 +11,11 @@ from common.pagination_helper import paginate_data
 from common.transaction_helper import *
 from posvana_api.utils.jwt_helper import *
 import re
+import os
+from posvana_api.utils.email_template import render_email_template
+from django.core.mail import EmailMessage
+
+
 
 #Pengajuan Toko (SUPERADMIN)
 
@@ -86,6 +91,9 @@ def detail_store_owners(request):
 @csrf_exempt
 def validate_store_owner(request):
     try:
+        if request.method != "PUT":
+            return Response.badRequest(request, message="Method tidak diizinkan", messagetype="E")
+        
         store_id = request.GET.get("store_id")
         status = request.GET.get("status")  # Menambahkan status
 
@@ -113,7 +121,6 @@ def validate_store_owner(request):
             filters={"store_id": store_id}
         )
 
-        # Ambil email dan virtual account jika diterima
         if status == "Done":
             owner_data = get_data(
                 table_name="tbl_store_owners",
@@ -123,16 +130,32 @@ def validate_store_owner(request):
             if not owner_data:
                 return Response.badRequest(request, message="Data store owner tidak ditemukan", messagetype="E")
 
-            # Ambil data pertama dari list
             owner_data = owner_data[0]
             email = owner_data.get("email")
             virtual_account = owner_data.get("no_virtual_account")
 
-            # Kirim email (dummy send_email function)
+            context = {
+                "full_name": owner_data.get("full_name", "Store Owner"),
+                "store_name": owner_data.get("store_name", "-"),
+                "email": owner_data.get("email", "-"),
+                "password": owner_data.get("password", "-"),
+                "package_duration": owner_data.get("package_duration", "-"),
+                "package_type": owner_data.get("package_type", "-"),
+                "package_price": owner_data.get("package_price", "-"),
+                "login_url": "https://posvana.com/login",  
+                "virtual_account": virtual_account
+            }
+
+            template_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), '..', '..', 'posvana_api','posvana_api','templates', 'email', 'email_store_validated.html')
+            )
+            email_body = render_email_template(template_path, context)
+
             send_email(
                 to=email,
-                subject="Virtual Account Anda",
-                message=f"Terima kasih, akun Anda telah divalidasi.\nBerikut nomor virtual account Anda: {virtual_account}"
+                subject="Akun Toko Anda Telah Divalidasi!",
+                message=email_body,
+                content_type='text/html'  # Supaya email tampil sebagai HTML
             )
 
         return Response.ok(message=f"Akun berhasil {status.lower()} & email VA telah dikirim" if status == "Done" else "Akun berhasil ditolak", messagetype="S")
@@ -140,15 +163,15 @@ def validate_store_owner(request):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
-def send_email(to, subject, message):
-    from django.core.mail import send_mail
-    send_mail(
-        subject,
-        message,
-        "noreply@namaprojectmu.com",  # sender
-        [to],
-        fail_silently=False,
+def send_email(to, subject, message, content_type='text/plain'):
+    email = EmailMessage(
+        subject=subject,
+        body=message,
+        to=[to],
     )
+    if content_type == 'text/html':
+        email.content_subtype = 'html'
+    email.send()
 
 @jwt_required
 @csrf_exempt
