@@ -307,7 +307,6 @@ def summary_produk(request):
 @csrf_exempt
 def daftar_menu(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
             store_id = request.GET.get("store_id")
 
@@ -333,8 +332,6 @@ def daftar_menu(request):
 @csrf_exempt
 def riwayat_pesanan(request):
     try:
-        validate_method(request, "GET")
-
         tanggal = request.GET.get("tanggal")
         status = request.GET.get("status")
         search = request.GET.get("search")
