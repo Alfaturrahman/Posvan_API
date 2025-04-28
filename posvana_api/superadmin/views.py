@@ -370,7 +370,7 @@ def update_package(request, package_id):
             json_data = json.loads(request.body)
 
             # Validasi data
-            required_fields = ["package_name", "duration", "price", "description"]
+            required_fields = ["package_name", "duration", "price", "description", "features"]
             for field in required_fields:
                 if field not in json_data:
                     return Response.badRequest(
@@ -394,7 +394,7 @@ def update_package(request, package_id):
             # Format tanggal (update)
             now = datetime.datetime.now()
 
-            # Data yang akan di-update
+            # Data yang akan di-update untuk paket
             data_to_update = {
                 "package_name": json_data["package_name"],
                 "duration": json_data["duration"],
@@ -410,6 +410,39 @@ def update_package(request, package_id):
                 filters={"package_id": package_id}
             )
 
+            # Mengupdate fitur terkait (tbl_package_features)
+            current_features = json_data["features"]  # Fitur baru yang akan ditambahkan
+            # Menghapus fitur yang lama
+            delete_data(
+                table_name="tbl_package_features",
+                filters={"package_id": package_id}
+            )
+
+            # Insert fitur baru ke tbl_package_features
+            for feature_id in current_features:
+                # Ambil feature_name berdasarkan feature_id
+                feature_data = get_data(
+                    table_name="master_features",
+                    filters={"feature_id": feature_id}
+                )
+                
+                if not feature_data:
+                    raise Exception(f"Feature dengan ID {feature_id} tidak ditemukan")
+
+                feature_name = feature_data[0]["feature_name"]
+
+                # Insert ke tbl_package_features
+                insert_data(
+                    table_name="tbl_package_features",
+                    data={
+                        "package_id": package_id,
+                        "package_name": json_data["package_name"],
+                        "feature_id": feature_id,
+                        "feature_name": feature_name,
+                        "created_at": now
+                    }
+                )
+
             return Response.ok(
                 message=f"Paket dengan ID {package_id} berhasil diperbarui",
                 messagetype="S"
@@ -424,10 +457,16 @@ def update_package(request, package_id):
 def delete_package(request, package_id):
     try:
         with transaction.atomic():
+            # Hapus data terkait di tbl_package_features
+            delete_data(
+                table_name="tbl_package_features",
+                filters={"package_id": package_id}
+            )
             
+            # Hapus data di tbl_packages
             delete_data(
                 table_name="tbl_packages",
-                filters={"package_id" : package_id }
+                filters={"package_id": package_id}
             )
 
             return Response.ok(data=package_id, message=f"Delete data dengan ID {package_id} Berhasil", messagetype="S")
