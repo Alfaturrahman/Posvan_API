@@ -252,12 +252,42 @@ def dashboard_pengajuan(request):
 def list_package(request):
     try:
         with transaction.atomic():
-            
-            List_Paket = get_data(
-                table_name="tbl_packages",
-            )
+            list_packages = get_data(table_name="tbl_packages")
+            list_package_features = get_data(table_name="tbl_package_features")
+            list_master_features = get_data(table_name="master_features")
 
-            return Response.ok(data=List_Paket, message="List data telah tampil", messagetype="S")
+            # Build feature lookup untuk master fitur
+            feature_dict = {f["feature_id"]: f for f in list_master_features}
+
+            result = []
+
+            for package in list_packages:
+                package_id = package["package_id"]
+
+                active_feature_ids = [
+                    pf["feature_id"] for pf in list_package_features if pf["package_id"] == package_id
+                ]
+
+                features = []
+                for feature in list_master_features:
+                    features.append({
+                        "feature_id": feature["feature_id"],
+                        "feature_name": feature["feature_name"],
+                        "feature_description": feature["feature_description"],
+                        "is_active": feature["feature_id"] in active_feature_ids
+                    })
+
+                # Append paket + fitur ke result
+                result.append({
+                    "package_id": package["package_id"],
+                    "package_name": package["package_name"],
+                    "duration": package["duration"],
+                    "price": package["price"],
+                    "description": package["description"],
+                    "features": features
+                })
+
+            return Response.ok(data=result, message="List data telah tampil", messagetype="S")
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
@@ -271,7 +301,7 @@ def insert_package(request):
             json_data = json.loads(request.body)
             user_id = request.user.get("user_id")
 
-            required_fields = ["package_name", "duration", "price", "description"]
+            required_fields = ["package_name", "duration", "price", "description", "features"]
             for field in required_fields:
                 if field not in json_data:
                     return Response.badRequest(
@@ -280,28 +310,52 @@ def insert_package(request):
                         messagetype="E"
                     )
             
-            # Format tanggal (mungkin menggunakan waktu saat ini untuk created_at dan update_at)
             now = timezone.now()
 
-            # Data yang akan di-insert ke tabel tbl_packages
             data_to_insert = {
-                "user_id" : user_id,
+                "user_id": user_id,
                 "package_name": json_data["package_name"],
                 "duration": json_data["duration"],
                 "price": json_data["price"],
                 "description": json_data["description"],
-                "created_at":  now,
+                "created_at": now,
                 "update_at": now,
             }
 
-            # Insert data ke tabel tbl_packages dan ambil ID-nya
+            # Insert package, ambil package_id
             package_id = insert_get_id_data(
                 table_name="tbl_packages",
                 data=data_to_insert,
                 column_id="package_id"
             )
 
-            return Response.ok(data={"package_id": package_id},message="Paket berhasil ditambahkan",messagetype="S")
+            # Insert fitur ke tbl_package_features
+            features = json_data.get("features", [])
+            for feature_id in features:
+                # Ambil feature_name berdasarkan feature_id
+                feature_data = get_data(
+                    table_name="master_features",
+                    filters={"feature_id": feature_id}
+                )
+                
+                if not feature_data:
+                    raise Exception(f"Feature dengan ID {feature_id} tidak ditemukan")
+
+                feature_name = feature_data[0]["feature_name"]
+
+                # Insert ke tbl_package_features
+                insert_data(
+                    table_name="tbl_package_features",
+                    data={
+                        "package_id": package_id,
+                        "package_name": json_data["package_name"],
+                        "feature_id": feature_id,
+                        "feature_name": feature_name,
+                        "created_at": now
+                    }
+                )
+
+            return Response.ok(data={"package_id": package_id}, message="Paket dan fitur berhasil ditambahkan", messagetype="S")
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
@@ -385,11 +439,10 @@ def delete_package(request, package_id):
 @csrf_exempt
 def list_master_features(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
             
             List_Paket = get_data(
-                table_name="tbl_masters_features",
+                table_name="master_features",
             )
 
             return Response.ok(data=List_Paket, message="List data telah tampil", messagetype="S")
