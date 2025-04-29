@@ -79,7 +79,6 @@ def dashboard(request):
 @csrf_exempt
 def list_antrian(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
             store_id = request.GET.get("store_id")
 
@@ -171,6 +170,26 @@ def insert_order(request):
                     if f not in item:
                         return Response.badRequest(request, message=f"Field '{f}' di order_items wajib diisi", messagetype="E")
 
+                # Periksa stok produk
+                product_id = item["product_id"]
+                quantity = item["item"]  # Anggap 'item' adalah jumlah pesanan
+                stok_produk = get_data(
+                    table_name="tbl_products",
+                    filters={"product_id": product_id}
+                )
+                
+                if stok_produk and stok_produk[0]['stock'] < quantity:
+                    return Response.badRequest(request, message=f"Stok produk {stok_produk[0]['product_name']} tidak mencukupi", messagetype="E")
+
+                # Kurangi stok produk
+                new_stock = stok_produk[0]['stock'] - quantity
+                update_data(
+                    table_name="tbl_products",
+                    data={"stock": new_stock},
+                    filters={"product_id": product_id}
+                )
+
+                # Insert ke tbl_order_items
                 item_data = {
                     "order_id": order_id,
                     "product_id": item["product_id"],
