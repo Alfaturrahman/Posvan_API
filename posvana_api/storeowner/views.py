@@ -325,6 +325,8 @@ def insert_produk(request):
         capital_price = request.POST.get("capital_price")
         selling_price = request.POST.get("selling_price")
         description = request.POST.get("description")
+        is_active = request.POST.get("is_active")
+
 
         if not all([product_code, product_name, store_id, stock, product_type, capital_price, selling_price, description]):
             return Response.badRequest(request, message="All fields are required", messagetype="E")
@@ -338,13 +340,12 @@ def insert_produk(request):
         file_url = fs.url(filename)  # URL gambar yang disimpan
 
         now = datetime.datetime.now()
-        is_active = request.POST.get("is_active")
+        
         if is_active is None:
             return Response.badRequest(request, message="Keterangan (is_active) is required", messagetype="E")
 
         # Convert to boolean
         is_active = True if is_active == 'true' else False
-
 
         data_to_insert = {
             "product_code": product_code,
@@ -399,6 +400,9 @@ def update_produk(request, product_id):
         capital_price = parsed_data.get("capital_price")
         selling_price = parsed_data.get("selling_price")
         description = parsed_data.get("description")
+        raw_is_active = parsed_data.get("is_active")
+        raw_is_active = parsed_data.get("is_active")
+        is_active = str(raw_is_active).lower() == 'true'
 
         if not all([product_code, product_name, store_id, stock, product_type, capital_price, selling_price, description]):
             return Response.badRequest(request, message="All fields are required", messagetype="E")
@@ -411,7 +415,10 @@ def update_produk(request, product_id):
             filename = fs.save(product_picture.name, product_picture)
             file_url = fs.url(filename)  # Simpan gambar baru dan dapatkan URL-nya
 
-        now = datetime.now()
+        now = datetime.datetime.now()
+
+        if is_active is None:
+            return Response.badRequest(request, message="Keterangan (is_active) is required", messagetype="E")
 
         data_to_update = {
             "product_code": product_code,
@@ -423,8 +430,11 @@ def update_produk(request, product_id):
             "selling_price": selling_price,
             "description": description,
             "product_picture": file_url,  
-            "update_at": now
+            "update_at": now,
+            "is_active": is_active  
         }
+
+        print("DATA TO UPDATE:", data_to_update)
 
         update_data(
             table_name="tbl_products",
@@ -441,12 +451,70 @@ def update_produk(request, product_id):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+    
+@jwt_required
+@csrf_exempt
+def update_status(request):
+    try:
+        # Pastikan metode adalah PUT
+        if request.method != "PUT":
+            return Response.badRequest(
+                request, message="Invalid HTTP method, expected PUT", messagetype="E"
+            )
+
+        # Ambil parameter dari query string
+        product_id = request.GET.get("product_id")
+        is_active = request.GET.get("is_active")
+
+        # Validasi product_id
+        if not product_id:
+            return Response.badRequest(
+                request, message="Product ID is required", messagetype="E"
+            )
+
+        # Validasi is_active
+        if is_active is None:
+            return Response.badRequest(
+                request, message="is_active is required", messagetype="E"
+            )
+
+        # Validasi dan konversi is_active ke boolean
+        is_active_str = is_active.lower()
+        if is_active_str not in ['true', 'false']:
+            return Response.badRequest(
+                request,
+                message="Invalid value for is_active, must be 'true' or 'false'",
+                messagetype="E"
+            )
+        is_active_bool = is_active_str == 'true'  # hasil akhir: True atau False
+
+        # Update database
+        now = datetime.datetime.now()
+        update_data(
+            table_name="tbl_products",
+            data={
+                "is_active": is_active_bool,  # Gunakan boolean True / False
+                "update_at": now
+            },
+            filters={"product_id": int(product_id)}
+        )
+
+        return Response.ok(
+            data={"product_id": product_id, "is_active": is_active_bool},
+            message="Status produk berhasil diperbarui",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(
+            request, message=str(e), messagetype="E"
+        )
 
 @jwt_required
 @csrf_exempt
 def delete_produk(request, product_id):
     try:
-        validate_method(request, "DELETE")
         with transaction.atomic():
             
             delete_data(
@@ -463,7 +531,6 @@ def delete_produk(request, product_id):
 @csrf_exempt
 def summary_produk(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
             store_id = request.GET.get("store_id")
 
@@ -553,16 +620,16 @@ def riwayat_pesanan(request):
 def riwayat_detail_pesanan(request):
     try:
         with transaction.atomic():
-            store_code = request.GET.get("store_code")
+            order_id = request.GET.get("order_id")
 
-            if not store_code:
-                return Response.badRequest(request, message="store_code harus disertakan", messagetype="E")
+            if not order_id:
+                return Response.badRequest(request, message="order_id harus disertakan", messagetype="E")
 
             riwayat_detail_pesanan = execute_query(
                 """
                     SELECT get_order_json(%s);
                 """,
-                params=(store_code,)  # <- ini beneran tuple
+                params=(order_id,)  # <- ini beneran tuple
             )
 
             return Response.ok(data=riwayat_detail_pesanan, message="List data telah tampil", messagetype="S")
