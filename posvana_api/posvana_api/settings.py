@@ -82,7 +82,7 @@ DATABASES = {
     #     'HOST': 'localhost',       # Karena kamu pakai PostgreSQL lokal
     #     'PORT': '5432',            # Default port PostgreSQL
     # },
-    'default': dj_database_url.config(default='postgresql://postgres:zMgJOAZHGBMSXLZwjzfyrhHxXqSmjVcp@shuttle.proxy.rlwy.net:53892/railway')
+    'default': dj_database_url.config(default='postgresql://postgres:HvVcxkZbEeNsXvgUYpgexUTFgAEKcCZW@ballast.proxy.rlwy.net:23404/railway')
 
 }
 

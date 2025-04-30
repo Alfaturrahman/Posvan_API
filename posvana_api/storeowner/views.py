@@ -34,9 +34,9 @@ def dashboard(request):
 
             dashboard_monthly = execute_query(
                 """
-                    SELECT * FROM summary_dashboard_monthly(%s);
+                    SELECT * FROM summary_dashboard_monthly(%s, %s, %s);
                 """,
-                params=(store_id,)
+                params=(store_id, year, month)
             )
             dashboard_yearly = execute_query(
                 """
@@ -231,9 +231,8 @@ def generate_order_code():
 
 @jwt_required
 @csrf_exempt
-def laporan_keutungan(request):
+def laporan_keutungan_dashboard(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
             store_id = request.GET.get("store_id")
 
@@ -253,13 +252,35 @@ def laporan_keutungan(request):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+@jwt_required
+@csrf_exempt
+def laporan_keutungan(request):
+    try:
+        with transaction.atomic():
+            store_id = request.GET.get("store_id")
+
+            if not store_id:
+                return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
+
+            laporan_keutungan = execute_query(
+                """
+                    SELECT * FROM laporan_keuntungan(%s);
+                """,
+                params=(store_id,)  
+            )
+
+            return Response.ok(data=laporan_keutungan, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
 #Produk (STORE OWNER)
 
 @jwt_required
 @csrf_exempt
 def daftar_produk(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
             store_id = request.GET.get("store_id")
             product_type = request.GET.get("product_type")
@@ -316,7 +337,14 @@ def insert_produk(request):
         filename = fs.save(product_picture.name, product_picture)  # simpan file gambar
         file_url = fs.url(filename)  # URL gambar yang disimpan
 
-        now = datetime.now()
+        now = datetime.datetime.now()
+        is_active = request.POST.get("is_active")
+        if is_active is None:
+            return Response.badRequest(request, message="Keterangan (is_active) is required", messagetype="E")
+
+        # Convert to boolean
+        is_active = True if is_active == 'true' else False
+
 
         data_to_insert = {
             "product_code": product_code,
@@ -329,7 +357,8 @@ def insert_produk(request):
             "description": description,
             "product_picture": file_url,  # Menggunakan URL gambar yang sudah di-upload
             "created_at": now,
-            "update_at": now
+            "update_at": now,
+            "is_active": is_active  
         }
 
         product_id = insert_get_id_data(
@@ -523,7 +552,6 @@ def riwayat_pesanan(request):
 @csrf_exempt
 def riwayat_detail_pesanan(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
             store_code = request.GET.get("store_code")
 
