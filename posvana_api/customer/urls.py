@@ -9,4 +9,4 @@ urlpatterns = [
     path('insert_order/', views.insert_order, name='insert_order'),
     path('daftar_menu/', views.daftar_menu, name='daftar_menu'),
     path('detail_log/', views.detail_log, name='detail_log'),
-]
+]   

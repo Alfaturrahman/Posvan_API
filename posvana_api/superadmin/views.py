@@ -247,7 +247,6 @@ def dashboard_pengajuan(request):
     
 # Daftar Paket
 
-@jwt_required
 @csrf_exempt
 def list_package(request):
     try:
@@ -348,9 +347,7 @@ def insert_package(request):
                     table_name="tbl_package_features",
                     data={
                         "package_id": package_id,
-                        "package_name": json_data["package_name"],
                         "feature_id": feature_id,
-                        "feature_name": feature_name,
                         "created_at": now
                     }
                 )

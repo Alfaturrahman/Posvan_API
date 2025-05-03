@@ -92,7 +92,7 @@ def register_store_owner(request):
         return Response.ok(message="Store owner registered successfully", messagetype='S')
 
     except Exception as e:
-        return Response.badRequest(message=f"Error during registration: {str(e)}", messagetype='E')
+        return Response.badRequest(request, message=f"Error during registration: {str(e)}", messagetype='E')
 
 @csrf_exempt
 def login_user(request):
@@ -109,20 +109,33 @@ def login_user(request):
 
         with connection.cursor() as cursor:
             cursor.execute("""
-                SELECT user_id, email, "Password", role_id, role_name, reference_id
-                FROM public.tbl_user
-                WHERE email = %s
+                SELECT u.user_id, u.email, u."Password", u.role_id, u.role_name, u.reference_id,
+                       s.account_status, s.is_active
+                FROM public.tbl_user u
+                JOIN public.tbl_store_owners s ON u.email = s.email
+                WHERE u.email = %s
             """, [email])
             user = cursor.fetchone()
 
         if not user:
             return Response.badRequest(request, message="User not found", messagetype='E')
 
-        user_id, email, hashed_password, role_id, role_name, reference_id = user
+        user_id, email, hashed_password, role_id, role_name, reference_id, account_status, is_active = user
 
+        
+
+        # Mengecek status akun
+        if account_status == "In Progress":
+            return Response.badRequest(request, message="Your account is under review", messagetype='E')
+        
+        if not is_active:
+            return Response.badRequest(request, message="Please complete the payment", messagetype='E')
+        
+        # Periksa apakah password cocok
         if not bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8')):
             return Response.badRequest(request, message="Invalid credentials", messagetype='E')
 
+        # Jika status valid, buat token JWT
         token = generate_jwt_token({
             "user_id": user_id,
             "email": email,
