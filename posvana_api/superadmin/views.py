@@ -312,7 +312,6 @@ def insert_package(request):
             now = timezone.now()
 
             data_to_insert = {
-                "user_id": user_id,
                 "package_name": json_data["package_name"],
                 "duration": json_data["duration"],
                 "price": json_data["price"],
@@ -433,9 +432,7 @@ def update_package(request, package_id):
                     table_name="tbl_package_features",
                     data={
                         "package_id": package_id,
-                        "package_name": json_data["package_name"],
                         "feature_id": feature_id,
-                        "feature_name": feature_name,
                         "created_at": now
                     }
                 )

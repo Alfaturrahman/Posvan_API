@@ -109,33 +109,39 @@ def login_user(request):
 
         with connection.cursor() as cursor:
             cursor.execute("""
-                SELECT u.user_id, u.email, u."Password", u.role_id, u.role_name, u.reference_id,
-                       s.account_status, s.is_active
-                FROM public.tbl_user u
-                JOIN public.tbl_store_owners s ON u.email = s.email
-                WHERE u.email = %s
+                SELECT user_id, email, "Password", role_id, role_name, reference_id
+                FROM public.tbl_user
+                WHERE email = %s
             """, [email])
             user = cursor.fetchone()
 
         if not user:
             return Response.badRequest(request, message="User not found", messagetype='E')
 
-        user_id, email, hashed_password, role_id, role_name, reference_id, account_status, is_active = user
+        user_id, email, hashed_password, role_id, role_name, reference_id = user
 
-        
+        # Cek tambahan hanya untuk store_owner
+        if role_name == "store_owner":
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT account_status, is_active
+                    FROM public.tbl_store_owners
+                    WHERE email = %s
+                """, [email])
+                store_data = cursor.fetchone()
 
-        # Mengecek status akun
-        if account_status == "In Progress":
-            return Response.badRequest(request, message="Your account is under review", messagetype='E')
-        
-        if not is_active:
-            return Response.badRequest(request, message="Please complete the payment", messagetype='E')
-        
-        # Periksa apakah password cocok
+            if store_data:
+                account_status, is_active = store_data
+
+                if account_status == "In Progress":
+                    return Response.badRequest(request, message="Your account is under review", messagetype='E')
+
+                if not is_active:
+                    return Response.badRequest(request, message="Please complete the payment", messagetype='E')
+
         if not bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8')):
             return Response.badRequest(request, message="Invalid credentials", messagetype='E')
-
-        # Jika status valid, buat token JWT
+        
         token = generate_jwt_token({
             "user_id": user_id,
             "email": email,
