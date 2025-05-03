@@ -91,12 +91,40 @@ def list_antrian(request):
                 """,
                 params=(store_id,)  
             )
+            filtered_antrian = [item for item in list_antrian if item.get("order_status") == "in_progress"]
 
-            return Response.ok(data=list_antrian, message="List data telah tampil", messagetype="S")
+            return Response.ok(data=filtered_antrian, message="List data telah tampil", messagetype="S")
 
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def update_order_status(request, order_id):
+    try:
+        validate_method(request, "PUT")
+        json_data = json.loads(request.body)
+        new_status = json_data.get("order_status")
+
+        if not new_status:
+            return Response.badRequest(request, message="Field 'order_status' wajib diisi", messagetype="E")
+
+        updated = update_data(
+            table_name="tbl_orders",
+            data={"order_status": new_status},
+            filters={"order_id": order_id}
+        )
+
+        if updated == 0:
+            return Response.badRequest(request, message="Order tidak ditemukan atau tidak ada perubahan", messagetype="E")
+
+        return Response.ok(message="Status order berhasil diperbarui", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
 
 @jwt_required
 @csrf_exempt
@@ -401,7 +429,6 @@ def update_produk(request, product_id):
         selling_price = parsed_data.get("selling_price")
         description = parsed_data.get("description")
         raw_is_active = parsed_data.get("is_active")
-        raw_is_active = parsed_data.get("is_active")
         is_active = str(raw_is_active).lower() == 'true'
 
         if not all([product_code, product_name, store_id, stock, product_type, capital_price, selling_price, description]):
@@ -413,13 +440,24 @@ def update_produk(request, product_id):
         if product_picture:
             fs = FileSystemStorage()
             filename = fs.save(product_picture.name, product_picture)
-            file_url = fs.url(filename)  # Simpan gambar baru dan dapatkan URL-nya
+            file_url = fs.url(filename)
+        else:
+            # Ambil gambar lama berdasarkan product_id
+            file_url = get_value(
+                table_name="tbl_products",
+                column_name="product_picture",
+                filters={"product_id": product_id}
+            )
+
+            if not file_url:
+                return Response.badRequest(request, message="Gambar lama tidak ditemukan", messagetype="E")
 
         now = datetime.datetime.now()
 
         if is_active is None:
             return Response.badRequest(request, message="Keterangan (is_active) is required", messagetype="E")
 
+        # Siapkan data untuk diupdate
         data_to_update = {
             "product_code": product_code,
             "product_name": product_name,
@@ -429,17 +467,18 @@ def update_produk(request, product_id):
             "capital_price": capital_price,
             "selling_price": selling_price,
             "description": description,
-            "product_picture": file_url,  
+            "product_picture": file_url,  # Bisa null jika tidak ada gambar baru
             "update_at": now,
-            "is_active": is_active  
+            "is_active": is_active
         }
 
         print("DATA TO UPDATE:", data_to_update)
 
+        # Melakukan update pada database
         update_data(
             table_name="tbl_products",
             data=data_to_update,
-            filters={"product_id": product_id}  
+            filters={"product_id": product_id}
         )
 
         return Response.ok(
@@ -451,7 +490,7 @@ def update_produk(request, product_id):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
-    
+
 @jwt_required
 @csrf_exempt
 def update_status(request):
@@ -599,9 +638,6 @@ def riwayat_pesanan(request):
         riwayat_pesanan_ditempat = get_data("tbl_orders", filters=filters_ditempat,search=search,search_columns=['order_status','order_code'])
         riwayat_pesanan_online = get_data("tbl_orders", filters=filters_online,search=search,search_columns=['order_status','order_code'])
         
-        riwayat_pesanan_ditempat= paginate_data(request,riwayat_pesanan_ditempat)
-        riwayat_pesanan_online= paginate_data(request,riwayat_pesanan_online)
-
         riwayat_pesanan = {
             "riwayat_pesanan_ditempat": riwayat_pesanan_ditempat,
             "riwayat_pesanan_online": riwayat_pesanan_online,
