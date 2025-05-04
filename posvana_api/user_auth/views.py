@@ -189,11 +189,6 @@ def register_customer(request):
 
         with transaction.atomic():
             with connection.cursor() as cursor:
-                # Optional: insert to tbl_customers kalau kamu punya
-                # cursor.execute("""INSERT INTO public.tbl_customers (name, no_wa, email, created_at) VALUES (%s, %s, %s, NOW()) RETURNING customer_id""", [data["name"], data["no_wa"], data["email"]])
-                # customer_id = cursor.fetchone()[0]
-
-                # Kalau tidak ada tabel customer, buat ID sendiri
                 cursor.execute("SELECT COALESCE(MAX(user_id), 0) + 1 FROM public.tbl_user")
                 user_id = cursor.fetchone()[0]
 
@@ -205,9 +200,9 @@ def register_customer(request):
                     user_id,
                     data["email"],
                     hashed_password,
-                    3,                  # role_id untuk customer
+                    3,                  
                     'customer',
-                    user_id             # reference_id = user_id (atau customer_id kalau ada tabelnya)
+                    user_id             
                 ])
 
         return Response.ok(message="Customer registered successfully", messagetype='S')
@@ -218,11 +213,9 @@ def register_customer(request):
 @csrf_exempt
 def change_password(request):
     try:
-        # Validasi HTTP method
         if request.method != "PUT":
             return Response.badRequest(request, message="Invalid HTTP method, expected PUT", messagetype="E")
         
-        # Parsing JSON body
         json_data = json.loads(request.body)
 
         # Ambil data dari request
@@ -262,7 +255,6 @@ def change_password(request):
         # Hash password baru
         hashed_new_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-        # Jalankan query UPDATE langsung menggunakan connection.cursor()
         with connection.cursor() as cursor:
             cursor.execute(
                 """

@@ -603,9 +603,10 @@ def daftar_menu(request):
 
             daftar_menu = execute_query(
                 """
-                    SELECT * FROM public.view_product_list where store_id = %s;
+                    SELECT * FROM public.view_product_list 
+                    WHERE store_id = %s AND is_active = true;
                 """,
-                params=(store_id,)  
+                params=(store_id,)
             )
 
             return Response.ok(data=daftar_menu, message="List data telah tampil", messagetype="S")

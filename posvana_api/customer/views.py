@@ -25,7 +25,7 @@ def data_toko(request):
 
             data_toko = execute_query(
                 """
-                    SELECT * FROM public.v_store_owners;
+                    SELECT * FROM tbl_store_owners;
                 """,
             )
 
@@ -39,12 +39,11 @@ def data_toko(request):
 @csrf_exempt
 def list_toko(request):
     try:
-        validate_method(request, "GET")
         with transaction.atomic():
 
             list_toko = execute_query(
                 """
-                    SELECT * FROM view_store_summary WHERE is_active = true;
+                    SELECT * FROM view_store_summary ;
                 """,
             )
 
