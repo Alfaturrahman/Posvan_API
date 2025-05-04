@@ -16,4 +16,5 @@ urlpatterns = [
     path('delete_package/<int:package_id>/', views.delete_package, name='delete_package'),
     # Page Dashboard
     path('dashboard_data_store/', views.dashboard_data_store, name='dashboard_data_store'),
+  
 ]

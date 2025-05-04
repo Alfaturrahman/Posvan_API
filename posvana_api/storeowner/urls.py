@@ -23,4 +23,7 @@ urlpatterns = [
     # Page Riwayat Pesanan
     path('riwayat_pesanan/', views.riwayat_pesanan, name='riwayat_pesanan'),
     path('riwayat_detail_pesanan/', views.riwayat_detail_pesanan, name='riwayat_detail_pesanan'),
+    # Page Profile
+    path('profile/<int:store_id>/', views.profile, name='profile'),
+    path('update_profile/<int:store_id>/', views.update_profile, name='update_profile'),
 ]

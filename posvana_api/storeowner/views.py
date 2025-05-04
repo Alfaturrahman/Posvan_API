@@ -673,3 +673,79 @@ def riwayat_detail_pesanan(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+    
+@jwt_required
+@csrf_exempt
+def profile(request, store_id):
+    try:
+        with transaction.atomic():
+            
+            profile = first_data(
+                table_name="tbl_store_owners",
+                filters={"store_id" : store_id}
+            )
+
+            return Response.ok(data=profile, message="List data telah tampil", messagetype="S")
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def update_profile(request, store_id):
+    try:
+        if request.method != "POST":
+            return Response.badRequest(request, message="Gunakan metode POST", messagetype="E")
+
+        # Match dengan nama field di FormData frontend
+        nama_toko = request.POST.get("store_name")
+        email = request.POST.get("email")
+        nik = request.POST.get("no_nik")
+        whatsapp = request.POST.get("no_hp")
+        alamat = request.POST.get("store_address")
+        jam_buka = request.POST.get("open_time")
+        jam_tutup = request.POST.get("close_time")
+        deskripsi = request.POST.get("description")
+
+        pernyataan = request.FILES.get("statement_letter")
+        ktp = request.FILES.get("ktp_picture")
+        izin_usaha = request.FILES.get("business_license")
+        foto_toko = request.FILES.get("store_picture")
+
+        fs = FileSystemStorage()
+        file_urls = {}
+
+        def save_file(file_obj, label):
+            if file_obj:
+                filename = fs.save(file_obj.name, file_obj)
+                file_urls[label] = fs.url(filename)
+
+        save_file(pernyataan, "statement_letter")
+        save_file(ktp, "ktp_picture")
+        save_file(izin_usaha, "business_license")
+        save_file(foto_toko, "store_picture")
+
+        data_to_update = {
+            "store_name": nama_toko,
+            "email": email,
+            "no_nik": nik,
+            "no_hp": whatsapp,
+            "store_address": alamat,
+            "open_time": jam_buka,
+            "close_time": jam_tutup,
+            "description": deskripsi,
+            "update_at": datetime.datetime.now()
+        }
+        data_to_update.update(file_urls)
+
+        with transaction.atomic():
+            update_data(
+                table_name="tbl_store_owners",
+                data=data_to_update,
+                filters={"store_id": store_id}
+            )
+
+        return Response.ok(data=data_to_update, message="Profil berhasil diperbarui", messagetype="S")
+
+    except Exception as e:
+        return Response.badRequest(request, message=str(e), messagetype="E")

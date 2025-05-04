@@ -524,5 +524,4 @@ def dashboard_data_store(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
-
- 
+    
