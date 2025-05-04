@@ -6,8 +6,12 @@ from django.db import connection, transaction
 from posvana_api.response import Response  # pastikan ini sesuai path
 from django.core.files.storage import FileSystemStorage  # Importing FileSystemStorage
 from datetime import datetime
-from posvana_api.utils.jwt_helper import generate_jwt_token
-import re
+from django.utils import timezone   
+from common.pagination_helper import paginate_data
+from common.transaction_helper import *
+from posvana_api.utils.jwt_helper import *
+from posvana_api.utils.email_template import render_email_template
+from django.core.mail import EmailMessage
 
 @csrf_exempt
 def register_store_owner(request):
@@ -210,3 +214,71 @@ def register_customer(request):
 
     except Exception as e:
         return Response.badRequest(request, message=f"Error during customer registration: {str(e)}", messagetype='E')
+
+@csrf_exempt
+def change_password(request):
+    try:
+        # Validasi HTTP method
+        if request.method != "PUT":
+            return Response.badRequest(request, message="Invalid HTTP method, expected PUT", messagetype="E")
+        
+        # Parsing JSON body
+        json_data = json.loads(request.body)
+
+        # Ambil data dari request
+        user_id = json_data.get("user_id")
+        old_password = json_data.get("oldPassword")
+        new_password = json_data.get("newPassword")
+        confirm_password = json_data.get("confirmPassword")
+
+        # Validasi data yang diterima
+        if not all([user_id, old_password, new_password, confirm_password]):
+            return Response.badRequest(request, message="All fields are required", messagetype="E")
+        
+        if len(new_password) < 6:
+            return Response.badRequest(request, message="New password must be at least 6 characters", messagetype="E")
+        
+        if new_password != confirm_password:
+            return Response.badRequest(request, message="Confirmation password does not match new password", messagetype="E")
+
+        # Ambil data user dari database berdasarkan user_id
+        user_data = first_data(
+            table_name="tbl_user",
+            filters={"user_id": user_id}
+        )
+
+        if not user_data:
+            return Response.badRequest(request, message="User not found", messagetype="E")
+        
+        if "Password" not in user_data:
+            return Response.badRequest(request, message="Password field not found in database", messagetype="E")
+
+        stored_password = user_data["Password"]
+
+        # Verifikasi password lama
+        if not bcrypt.checkpw(old_password.encode('utf-8'), stored_password.encode('utf-8')):
+            return Response.badRequest(request, message="Old Password tidak sesuai", messagetype="E")
+
+        # Hash password baru
+        hashed_new_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        # Jalankan query UPDATE langsung menggunakan connection.cursor()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE tbl_user 
+                SET "Password" = %s, update_at = NOW()
+                WHERE user_id = %s
+                """,
+                [hashed_new_password, user_id]
+            )
+
+        # Response sukses
+        return Response.ok(
+            message="Password updated successfully",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message="Error while updating password: " + str(e), messagetype="E")
