@@ -76,8 +76,6 @@ def detail_store_owners(request):
 
             store_id = request.GET.get("store_id")
 
-            print(store_id)
-            
             detail_store_owners = first_data(
                 table_name="tbl_store_owners",
                 filters={"store_id" : store_id}
@@ -479,6 +477,30 @@ def list_master_features(request):
             )
 
             return Response.ok(data=List_Paket, message="List data telah tampil", messagetype="S")
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+    
+@jwt_required
+@csrf_exempt
+def detail_pengguna_paket(request):
+    try:
+        with transaction.atomic():
+
+            package_id = request.GET.get("package_id")
+
+            if not package_id:
+                return Response.badRequest(request, message="Parameter 'package_id' wajib diisi", messagetype="E")
+
+            detail_pengguna_paket = execute_query(
+                """
+                    SELECT * FROM public.view_users_per_package WHERE package_id = %s;
+                """,
+                params=(package_id,)
+            )
+            
+            return Response.ok(data=detail_pengguna_paket, message="List data telah tampil", messagetype="S")
+    
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
