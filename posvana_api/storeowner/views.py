@@ -750,3 +750,59 @@ def update_profile(request, store_id):
 
     except Exception as e:
         return Response.badRequest(request, message=str(e), messagetype="E")
+    
+
+@jwt_required
+@csrf_exempt
+def update_open_status(request):
+    try:
+        if request.method != "PUT":
+            return Response.badRequest(
+                request, message="Invalid HTTP method, expected PUT", messagetype="E"
+            )
+
+        store_id = request.GET.get("store_id")
+        is_open = request.GET.get("is_open")
+
+        if not store_id:
+            return Response.badRequest(
+                request, message="store_id is required", messagetype="E"
+            )
+
+        if is_open is None:
+            return Response.badRequest(
+                request, message="is_open is required", messagetype="E"
+            )
+
+        is_open_str = is_open.lower()
+        if is_open_str not in ['true', 'false']:
+            return Response.badRequest(
+                request,
+                message="Invalid value for is_open, must be 'true' or 'false'",
+                messagetype="E"
+            )
+
+        is_open_bool = is_open_str == 'true'
+
+        now = datetime.datetime.now()
+        update_data(
+            table_name="tbl_store_owners",
+            data={
+                "is_open": is_open_bool,
+                "update_at": now
+            },
+            filters={"store_id": int(store_id)}
+        )
+
+        return Response.ok(
+            data={"store_id": store_id, "is_open": is_open_bool},
+            message="Status buka/tutup toko berhasil diperbarui",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(
+            request, message=str(e), messagetype="E"
+        )
+

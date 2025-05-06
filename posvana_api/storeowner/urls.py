@@ -26,4 +26,6 @@ urlpatterns = [
     # Page Profile
     path('profile/<int:store_id>/', views.profile, name='profile'),
     path('update_profile/<int:store_id>/', views.update_profile, name='update_profile'),
+    # Update Status Toko
+    path('update_open_status/', views.update_open_status, name='update_open_status'),
 ]
