@@ -8,17 +8,20 @@
 
       <h2 style="color: #333;">Halo {{ full_name }},</h2>
 
-      <p style="color: #555; font-size: 16px;">Selamat! Akun toko Anda telah berhasil dibuat. Berikut adalah detail akun toko Anda:</p>
+      <p style="color: #555; font-size: 16px;">Selamat! Akun toko Anda telah berhasil diverifikasi. Berikut adalah detail akun toko Anda:</p>
 
       <table style="width: 100%; font-size: 15px; margin: 20px 0; color: #555;">
         <tr><td>Nama Toko</td><td>: {{ store_name }}</td></tr>
         <tr><td>Email Login</td><td>: {{ email }}</td></tr>
-        <tr><td>Virtual Account</td><td>: {{ virtual_account }}</td></tr>
+        <tr><td>Kata Sandi Akun</td><td>: {{ password }}</td></tr>
+        <tr><td>Durasi Paket</td><td>: {{ package_duration }}</td></tr>
+        <tr><td>Jenis Paket</td><td>: {{ package_type }}</td></tr>
+        <tr><td>Harga Paket/Bulan</td><td>: {{ package_price }}</td></tr>
       </table>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="{{ verify_url }}" style="background-color: #F6B543; color: white; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 6px; font-size: 16px;">
-          Verifikasi Akun Anda
+        <a href="{{ login_url }}" style="background-color: #F6B543; color: white; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 6px; font-size: 16px;">
+          Login Sekarang
         </a>
       </div>
 

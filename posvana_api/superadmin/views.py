@@ -119,33 +119,35 @@ def validate_store_owner(request):
             filters={"store_id": store_id}
         )
 
+        owner_data = get_data(
+            table_name="tbl_store_owners",
+            filters={"store_id": store_id}
+        )
+
+        if not owner_data:
+            return Response.badRequest(request, message="Data store owner tidak ditemukan", messagetype="E")
+
+        owner_data = owner_data[0]
+        email = owner_data.get("email")
+        full_name = owner_data.get("full_name")
+        store_name = owner_data.get("store_name")
+
         if status == "Done":
-            owner_data = get_data(
-                table_name="tbl_store_owners",
-                filters={"store_id": store_id}
-            )
-
-            if not owner_data:
-                return Response.badRequest(request, message="Data store owner tidak ditemukan", messagetype="E")
-
-            owner_data = owner_data[0]
-            email = owner_data.get("email")
-            virtual_account = owner_data.get("no_virtual_account")
-
+            # Kirim email jika status "Done"
             context = {
-                "full_name": owner_data.get("full_name", "Store Owner"),
-                "store_name": owner_data.get("store_name", "-"),
-                "email": owner_data.get("email", "-"),
+                "full_name": full_name,
+                "store_name": store_name,
+                "email": email,
                 "password": owner_data.get("password", "-"),
                 "package_duration": owner_data.get("package_duration", "-"),
                 "package_type": owner_data.get("package_type", "-"),
                 "package_price": owner_data.get("package_price", "-"),
-                "login_url": "https://posvana.com/login",  
-                "virtual_account": virtual_account
+                "login_url": "https://posvana.com/login",
+                "virtual_account": owner_data.get("no_virtual_account")
             }
 
             template_path = os.path.abspath(
-                os.path.join(os.path.dirname(__file__), '..', '..', 'posvana_api','posvana_api','templates', 'email', 'email_store_validated.html')
+                os.path.join(os.path.dirname(__file__), '..', '..', 'posvana_api', 'posvana_api', 'templates', 'email', 'email_store_validated.html')
             )
             email_body = render_email_template(template_path, context)
 
@@ -153,10 +155,31 @@ def validate_store_owner(request):
                 to=email,
                 subject="Akun Toko Anda Telah Divalidasi!",
                 message=email_body,
-                content_type='text/html'  # Supaya email tampil sebagai HTML
+                content_type='text/html'
+            )
+        elif status == "Reject":
+            # Kirim email jika status "Reject"
+            context = {
+                "full_name": full_name,
+                "store_name": store_name,
+                "email": email,
+                "registration_url": "https://posvana.com/daftar-ulangan"  # URL untuk pendaftaran ulang
+            }
+
+            template_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), '..', '..', 'posvana_api', 'posvana_api', 'templates', 'email', 'email_store_rejected.html')
+            )
+            email_body = render_email_template(template_path, context)
+
+            send_email(
+                to=email,
+                subject="Pengajuan Akun Toko Anda Ditolak",
+                message=email_body,
+                content_type='text/html'
             )
 
-        return Response.ok(message=f"Akun berhasil {status.lower()} & email VA telah dikirim" if status == "Done" else "Akun berhasil ditolak", messagetype="S")
+        return Response.ok(message=f"Akun berhasil {status.lower()} & email VA telah dikirim" if status == "Done" else "Akun berhasil ditolak, email pemberitahuan telah dikirim", messagetype="S")
+
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
@@ -187,6 +210,25 @@ def verify_payment(request):
         if not exists_data(table_name="tbl_store_owners", filters={"store_id": store_id}):
             return Response.badRequest(request, message="Store owner tidak ditemukan", messagetype="E")
 
+        # Ambil data store owner untuk mendapatkan email
+        owner_data = get_data(
+            table_name="tbl_store_owners",
+            filters={"store_id": store_id}
+        )
+        
+        if not owner_data:
+            return Response.badRequest(request, message="Data store owner tidak ditemukan", messagetype="E")
+
+        owner_data = owner_data[0]
+        email = owner_data.get("email")
+        full_name = owner_data.get("full_name")
+        password = "securePassword123" 
+        store_name = owner_data.get("store_name")
+        package_duration = owner_data.get("package_duration", "-")
+        package_type = owner_data.get("package_type", "-")
+        package_price = owner_data.get("package_price", "-")
+        login_url = "https://posvana.com/login"
+        
         # Update status payment_status dan is_active
         print("[DEBUG] Melakukan update payment_status ke True dan is_active ke True")
         update_data(
@@ -197,6 +239,30 @@ def verify_payment(request):
                 "update_at": timezone.now()
             },
             filters={"store_id": store_id}
+        )
+
+        # Kirim email verifikasi akun
+        context = {
+            "full_name": full_name,
+            "password": password,
+            "store_name": store_name,
+            "email": email,
+            "package_duration": package_duration,
+            "package_type": package_type,
+            "package_price": package_price,
+            "login_url": login_url
+        }
+
+        template_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..', '..', 'posvana_api', 'posvana_api', 'templates', 'email', 'email_store_verified.html')
+        )
+        email_body = render_email_template(template_path, context)
+
+        send_email(
+            to=email,
+            subject="Akun Toko Anda Telah Diverifikasi!",
+            message=email_body,
+            content_type='text/html'  # Supaya email tampil sebagai HTML
         )
 
         return Response.ok(message="Pembayaran berhasil diverifikasi & status akun diupdate", messagetype="S")
