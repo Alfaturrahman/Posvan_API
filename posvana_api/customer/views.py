@@ -61,7 +61,7 @@ def log_pemesanan(request):
 
             log_pemesanan = execute_query(
                 """
-                    SELECT * FROM view_order_summary;
+                SELECT * FROM view_order_summary ORDER BY created_at DESC;
                 """,
             )
 

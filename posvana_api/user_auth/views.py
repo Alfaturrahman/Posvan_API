@@ -179,19 +179,30 @@ def register_customer(request):
 
     try:
         data = json.loads(request.body)
-        required_fields = ["email", "password", "name",]
+        required_fields = ["email", "password", "name"]
 
         for field in required_fields:
             if not data.get(field):
                 return Response.badRequest(request, message=f"{field} is required", messagetype='E')
 
+        # Cek apakah email sudah ada
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM public.tbl_user WHERE email = %s", [data["email"]])
+            email_count = cursor.fetchone()[0]
+
+        if email_count > 0:
+            return Response.badRequest(request, message="Email is already registered", messagetype='E')
+
+        # Hash password
         hashed_password = bcrypt.hashpw(data["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
         with transaction.atomic():
             with connection.cursor() as cursor:
+                # Ambil ID terakhir
                 cursor.execute("SELECT COALESCE(MAX(user_id), 0) + 1 FROM public.tbl_user")
                 user_id = cursor.fetchone()[0]
 
+                # Insert ke tbl_user
                 cursor.execute("""
                     INSERT INTO public.tbl_user (
                         user_id, email, "Password", role_id, created_at, role_name, reference_id
@@ -200,9 +211,9 @@ def register_customer(request):
                     user_id,
                     data["email"],
                     hashed_password,
-                    3,                  
+                    3,              # role_id untuk customer
                     'customer',
-                    user_id             
+                    user_id         # reference_id sama dengan user_id
                 ])
 
         return Response.ok(message="Customer registered successfully", messagetype='S')

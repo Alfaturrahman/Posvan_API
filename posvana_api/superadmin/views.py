@@ -129,7 +129,7 @@ def validate_store_owner(request):
 
         owner_data = owner_data[0]
         email = owner_data.get("email")
-        full_name = owner_data.get("full_name")
+        full_name = owner_data.get("name_owner")
         store_name = owner_data.get("store_name")
 
         if status == "Done":
