@@ -210,24 +210,41 @@ def verify_payment(request):
         if not exists_data(table_name="tbl_store_owners", filters={"store_id": store_id}):
             return Response.badRequest(request, message="Store owner tidak ditemukan", messagetype="E")
 
-        # Ambil data store owner untuk mendapatkan email
         owner_data = get_data(
             table_name="tbl_store_owners",
             filters={"store_id": store_id}
         )
-        
+
         if not owner_data:
             return Response.badRequest(request, message="Data store owner tidak ditemukan", messagetype="E")
 
         owner_data = owner_data[0]
+
+        # Ambil data dasar store owner
         email = owner_data.get("email")
-        full_name = owner_data.get("full_name")
-        password = "securePassword123" 
+        full_name = owner_data.get("name_owner")
         store_name = owner_data.get("store_name")
-        package_duration = owner_data.get("package_duration", "-")
-        package_type = owner_data.get("package_type", "-")
-        package_price = owner_data.get("package_price", "-")
-        login_url = "https://posvana.com/login"
+        password = "securePassword123"
+        login_url = "http://localhost:3000/Login"
+        virtual_account = owner_data.get("no_virtual_account", "-")
+
+        # Ambil data paket dari package_id
+        package_id = owner_data.get("package_id")
+        package_duration = "-"
+        package_type = "-"
+        package_price = "-"
+
+        if package_id:
+            package_data = get_data(
+                table_name="tbl_packages",
+                filters={"package_id": package_id}
+            )
+            if package_data:
+                package = package_data[0]
+                package_duration = f"{package.get('duration', '-') or '-'} Bulan"
+                package_type = package.get("package_name", "-")
+                package_price = package.get("price", "-")
+
         
         # Update status payment_status dan is_active
         print("[DEBUG] Melakukan update payment_status ke True dan is_active ke True")
@@ -243,14 +260,15 @@ def verify_payment(request):
 
         # Kirim email verifikasi akun
         context = {
-            "full_name": full_name,
+            "full_name": full_name or "Store Owner",
+            "store_name": store_name or "-",
+            "email": email or "-",
             "password": password,
-            "store_name": store_name,
-            "email": email,
             "package_duration": package_duration,
             "package_type": package_type,
             "package_price": package_price,
-            "login_url": login_url
+            "login_url": login_url,
+            "virtual_account": virtual_account
         }
 
         template_path = os.path.abspath(
