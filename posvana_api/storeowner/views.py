@@ -10,6 +10,7 @@ from django.utils import timezone
 from common.pagination_helper import paginate_data
 from common.transaction_helper import *
 from posvana_api.utils.jwt_helper import *
+from posvana_api.utils.export_pdf import *
 import re
 from django.http.multipartparser import MultiPartParser
 
@@ -288,24 +289,33 @@ def laporan_keutungan_dashboard(request):
 @csrf_exempt
 def laporan_keutungan(request):
     try:
-        with transaction.atomic():
-            store_id = request.GET.get("store_id")
+        store_id = request.GET.get("store_id")
 
-            if not store_id:
-                return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
+        if not store_id:
+            return JsonResponse({'status': 'error', 'message': 'store_id harus disertakan'}, status=400)
 
+        export_pdf = request.GET.get("export_pdf")
+        if export_pdf == 'true':
+            # Ambil data laporan keuntungan
             laporan_keutungan = execute_query(
-                """
-                    SELECT * FROM laporan_keuntungan(%s);
-                """,
-                params=(store_id,)  
+                "SELECT * FROM laporan_keuntungan(%s);",
+                params=(store_id,)
             )
+            return generate_laporan_keuntungan_pdf(laporan_keutungan)
 
-            return Response.ok(data=laporan_keutungan, message="List data telah tampil", messagetype="S")
+        # Jika tidak ekspor, kembalikan data dalam format biasa (JSON)
+        laporan_keutungan = execute_query(
+            "SELECT * FROM laporan_keuntungan(%s);",
+            params=(store_id,)
+        )
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Data laporan keutungan berhasil diambil',
+            'data': laporan_keutungan
+        })
 
     except Exception as e:
-        log_exception(request, e)
-        return Response.badRequest(request, message=str(e), messagetype="E")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 #Produk (STORE OWNER)
 
