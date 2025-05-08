@@ -349,35 +349,53 @@ def insert_produk(request):
         if request.method != 'POST' or not request.FILES:
             return Response.badRequest(request, message="Invalid request. Please send as multipart/form-data.", messagetype="E")
 
-        product_code = request.POST.get("product_code")
         product_name = request.POST.get("product_name")
         store_id = request.POST.get("store_id")
         stock = request.POST.get("stock")
-        product_type = request.POST.get("product_type")
+        product_type = request.POST.get("product_type")  # makanan / minuman
         capital_price = request.POST.get("capital_price")
         selling_price = request.POST.get("selling_price")
         description = request.POST.get("description")
         is_active = request.POST.get("is_active")
 
-
-        if not all([product_code, product_name, store_id, stock, product_type, capital_price, selling_price, description]):
+        if not all([product_name, store_id, stock, product_type, capital_price, selling_price, description]):
             return Response.badRequest(request, message="All fields are required", messagetype="E")
 
-        product_picture = request.FILES.get("product_picture")
-        if not product_picture:
+        if not request.FILES.get("product_picture"):
             return Response.badRequest(request, message="Product picture is required", messagetype="E")
 
-        fs = FileSystemStorage()
-        filename = fs.save(product_picture.name, product_picture)  # simpan file gambar
-        file_url = fs.url(filename)  # URL gambar yang disimpan
-
-        now = datetime.datetime.now()
-        
         if is_active is None:
             return Response.badRequest(request, message="Keterangan (is_active) is required", messagetype="E")
 
-        # Convert to boolean
+        # Convert is_active to boolean
         is_active = True if is_active == 'true' else False
+
+        # Generate product_code
+        prefix = "MK" if product_type.lower() == "makanan" else "DR"
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT product_code FROM tbl_products 
+                WHERE product_code LIKE %s 
+                ORDER BY product_code DESC 
+                LIMIT 1
+            """, [prefix + "%"])
+            last_code = cursor.fetchone()
+        
+        if last_code:
+            last_number = int(last_code[0][2:])  # ambil angka setelah prefix
+        else:
+            last_number = 0
+
+        next_number = last_number + 1
+        product_code = f"{prefix}{next_number:03d}"
+
+        # Upload gambar
+        product_picture = request.FILES.get("product_picture")
+        fs = FileSystemStorage()
+        filename = fs.save(product_picture.name, product_picture)
+        file_url = fs.url(filename)
+
+        now = datetime.datetime.now()
 
         data_to_insert = {
             "product_code": product_code,
@@ -388,7 +406,7 @@ def insert_produk(request):
             "capital_price": capital_price,
             "selling_price": selling_price,
             "description": description,
-            "product_picture": file_url,  # Menggunakan URL gambar yang sudah di-upload
+            "product_picture": file_url,
             "created_at": now,
             "update_at": now,
             "is_active": is_active  
@@ -400,7 +418,11 @@ def insert_produk(request):
             column_id="product_id"
         )
 
-        return Response.ok(data={"product_id": product_id, "product_picture_url": file_url}, message="Produk berhasil ditambahkan", messagetype="S")
+        return Response.ok(
+            data={"product_id": product_id, "product_code": product_code, "product_picture_url": file_url},
+            message="Produk berhasil ditambahkan",
+            messagetype="S"
+        )
 
     except Exception as e:
         log_exception(request, e)
