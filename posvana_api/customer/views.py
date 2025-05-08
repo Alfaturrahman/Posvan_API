@@ -57,12 +57,20 @@ def list_toko(request):
 @csrf_exempt
 def log_pemesanan(request):
     try:
-        with transaction.atomic():
+        user = request.user
+        user_id = user.get("user_id") if isinstance(user, dict) else getattr(user, "user_id", None)
 
+        if not user_id:
+            return Response.badRequest(request, message="User ID not found in token", messagetype="E")
+
+        with transaction.atomic():
             log_pemesanan = execute_query(
                 """
-                SELECT * FROM view_order_summary ORDER BY created_at DESC;
+                SELECT * FROM view_order_summary
+                WHERE role_id = 3 AND reference_id = %s
+                ORDER BY created_at DESC;
                 """,
+                [user_id]
             )
 
             return Response.ok(data=log_pemesanan, message="List data telah tampil", messagetype="S")
@@ -97,6 +105,8 @@ def insert_order(request):
             remarks = json_data.get("remarks", "")
             pickup_date = json_data.get("pickup_date", None)
             pickup_time = json_data.get("pickup_time", None)
+            role_id = json_data.get("role_id", None)
+            reference_id = json_data.get("reference_id", None)
             no_hp = json_data.get("no_hp", "")
             delivery_address = json_data.get("delivery_address", "")
             
@@ -118,6 +128,8 @@ def insert_order(request):
                 "remarks": remarks,
                 "pickup_date": pickup_date,
                 "pickup_time": pickup_time,
+                "role_id": role_id,
+                "reference_id": reference_id,
                 "no_hp": no_hp,
                 "delivery_address": delivery_address,
                 "order_code": order_code,

@@ -152,6 +152,8 @@ def insert_order(request):
             remarks = json_data.get("remarks", "")
             pickup_date = json_data.get("pickup_date", None)
             pickup_time = json_data.get("pickup_time", None)
+            role_id = json_data.get("role_id", None)
+            reference_id = json_data.get("reference_id", None)
             no_hp = json_data.get("no_hp", "")
             delivery_address = json_data.get("delivery_address", "")
             
@@ -173,6 +175,8 @@ def insert_order(request):
                 "remarks": remarks,
                 "pickup_date": pickup_date,
                 "pickup_time": pickup_time,
+                "role_id": role_id,
+                "reference_id": reference_id,
                 "no_hp": no_hp,
                 "delivery_address": delivery_address,
                 "order_code": order_code,
@@ -625,8 +629,24 @@ def riwayat_pesanan(request):
         status = request.GET.get("status")
         search = request.GET.get("search")
 
-        filters_ditempat = {"is_dine_in": True, "is_pre_order": False}
-        filters_online = {"is_dine_in": False, "is_pre_order": True}
+        # Ambil store_id dari JWT (pastikan token menyimpan info ini saat login)
+        store_id = request.user.get("reference_id") if isinstance(request.user, dict) else getattr(request.user, "reference_id", None)
+
+        print(store_id)
+        if not store_id:
+            return Response.badRequest(request, message="Store ID not found in token", messagetype="E")
+
+        # Filter dasar
+        filters_ditempat = {
+            "is_dine_in": True,
+            "is_pre_order": False,
+            "store_id": store_id,
+        }
+        filters_online = {
+            "is_dine_in": False,
+            "is_pre_order": True,
+            "store_id": store_id,
+        }
 
         if tanggal:
             filters_ditempat["created_at"] = tanggal
@@ -636,9 +656,22 @@ def riwayat_pesanan(request):
             filters_ditempat["order_status"] = status
             filters_online["order_status"] = status
 
-        riwayat_pesanan_ditempat = get_data("tbl_orders", filters=filters_ditempat,search=search,search_columns=['order_status','order_code'])
-        riwayat_pesanan_online = get_data("tbl_orders", filters=filters_online,search=search,search_columns=['order_status','order_code'])
-        
+        riwayat_pesanan_ditempat = get_data(
+            "tbl_orders",
+            filters=filters_ditempat,
+            search=search,
+            search_columns=['order_status', 'order_code'],
+            order_by="created_at DESC"
+        )
+
+        riwayat_pesanan_online = get_data(
+            "tbl_orders",
+            filters=filters_online,
+            search=search,
+            search_columns=['order_status', 'order_code'],
+            order_by="created_at DESC"
+        )
+
         riwayat_pesanan = {
             "riwayat_pesanan_ditempat": riwayat_pesanan_ditempat,
             "riwayat_pesanan_online": riwayat_pesanan_online,
