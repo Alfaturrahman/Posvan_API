@@ -3,6 +3,8 @@ from . import views
 
 urlpatterns = [
     # Dashboard
+    path('profile_cust/', views.profile_cust, name='profile_cust'),
+    path('update_profile_cust/', views.update_profile_cust, name='update_profile_cust'),
     path('data_toko/', views.data_toko, name='data_toko'),
     path('list_toko/', views.list_toko, name='list_toko'),
     path('log_pemesanan/', views.log_pemesanan, name='log_pemesanan'),

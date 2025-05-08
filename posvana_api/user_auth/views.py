@@ -179,8 +179,9 @@ def register_customer(request):
 
     try:
         data = json.loads(request.body)
-        required_fields = ["email", "password", "name"]
+        required_fields = ["email", "password", "name", "phone_number"]
 
+        # Validasi apakah semua data ada
         for field in required_fields:
             if not data.get(field):
                 return Response.badRequest(request, message=f"{field} is required", messagetype='E')
@@ -211,15 +212,28 @@ def register_customer(request):
                     user_id,
                     data["email"],
                     hashed_password,
-                    3,              # role_id untuk customer
+                    3,  # role_id untuk customer
                     'customer',
-                    user_id         # reference_id sama dengan user_id
+                    user_id  # reference_id sama dengan user_id
+                ])
+
+                # Insert ke tbl_customer
+                cursor.execute("""
+                    INSERT INTO public.tbl_customer (
+                        customer_id, custname_name, customer_email, customer_password, phone_number, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, NOW())
+                """, [
+                    user_id,  # customer_id sama dengan user_id
+                    data["name"],
+                    data["email"],
+                    hashed_password,
+                    data["phone_number"]  # Menambahkan nomor telepon
                 ])
 
         return Response.ok(message="Customer registered successfully", messagetype='S')
 
     except Exception as e:
-        return Response.badRequest(request, message=f"Error during customer registration: {str(e)}", messagetype='E')
+        return Response.badRequest(request, message=f"Error during customer registration: {str(e)}", messagetype="E")
 
 @csrf_exempt
 def change_password(request):

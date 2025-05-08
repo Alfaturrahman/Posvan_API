@@ -13,6 +13,101 @@ from posvana_api.utils.jwt_helper import jwt_required
 import re
 from django.http.multipartparser import MultiPartParser
 
+
+#PROFILE CUSTOMER
+
+@jwt_required
+@csrf_exempt
+def profile_cust(request):
+    try:
+        # Mengambil customer_id dari request.user
+        customer_id = request.user.get('reference_id')  # Mengambil user_id dari decoded token
+        
+        with transaction.atomic():
+            profile_cust = first_data(
+                table_name="tbl_customer",
+                filters={"customer_id": customer_id},
+            )
+
+            if not profile_cust:
+                return Response.badRequest(request, message="Customer not found", messagetype="E")
+
+            return Response.ok(data=profile_cust, message="Profile customer berhasil ditampilkan", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+    
+@jwt_required
+@csrf_exempt
+def update_profile_cust(request):
+    try:
+        # Mendapatkan customer_id dari token yang telah di-decode
+        customer_id = request.user.get('reference_id')  # Mengambil reference_id yang merupakan customer_id
+
+        # Pastikan ada data yang dikirimkan dalam body atau form-data
+        if not request.body and not request.POST:
+            return Response.badRequest(request, message="No data provided", messagetype="E")
+
+        # Menangani form-data yang dikirimkan
+        data = request.POST
+        avatar = request.FILES.get('avatar', None)  # Jika ada file avatar
+        updated_fields = {}
+
+        # Validasi input, misalnya hanya email, nama, dan phone_number yang ingin diupdate
+        if 'email' in data:
+            updated_fields['customer_email'] = data['email']
+        if 'custname_name' in data:
+            updated_fields['custname_name'] = data['custname_name']
+        if 'phone_number' in data:
+            updated_fields['phone_number'] = data['phone_number']
+
+        # Jika tidak ada field yang valid untuk diupdate
+        if not updated_fields:
+            return Response.badRequest(request, message="No valid fields to update", messagetype="E")
+
+        # Melakukan update data customer di database
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                # Menghasilkan klausa SET untuk query UPDATE
+                set_clause = ', '.join([f"{key} = %s" for key in updated_fields.keys()])
+                values = list(updated_fields.values())
+
+                # Query untuk melakukan update
+                query = f"""
+                    UPDATE public.tbl_customer
+                    SET {set_clause}
+                    WHERE customer_id = %s
+                """
+                cursor.execute(query, values + [customer_id])  # Menambahkan customer_id ke query
+
+            # Jika ada avatar, simpan file avatar
+            if avatar:
+                # Misalnya, kamu ingin menyimpannya ke direktori tertentu
+                avatar_path = save_avatar(avatar)  # Ganti dengan fungsi penyimpanan file yang sesuai
+                # Simpan path avatar ke tabel customer jika perlu
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE public.tbl_customer
+                        SET avatar_path = %s
+                        WHERE customer_id = %s
+                    """, [avatar_path, customer_id])
+
+        return Response.ok(message="Profile updated successfully", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=f"Error during profile update: {str(e)}", messagetype="E")
+
+def save_avatar(avatar):
+    # Simpan avatar ke folder tertentu dan kembalikan path-nya
+    file_path = f"avatars/{avatar.name}"
+    with open(file_path, 'wb') as f:
+        for chunk in avatar.chunks():
+            f.write(chunk)
+    return file_path
+
+
 #Dashboard (STORE OWNER)
 
 @jwt_required
