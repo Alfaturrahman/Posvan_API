@@ -13,8 +13,8 @@ from posvana_api.utils.jwt_helper import *
 from posvana_api.utils.export_pdf import *
 import re
 from django.http.multipartparser import MultiPartParser
-
-
+from django.utils import timezone
+from django.utils.timezone import localtime
 
 #Dashboard (STORE OWNER)
 
@@ -143,7 +143,7 @@ def insert_order(request):
                 if field not in json_data:
                     return Response.badRequest(request, message=f"Field '{field}' wajib diisi", messagetype="E")
             
-            now = timezone.now()
+            now = localtime(timezone.now())  # ini akan beri waktu sesuai TIME_ZONE di settings.py
 
             # Generate order code
             order_code = generate_order_code()
@@ -465,7 +465,16 @@ def update_produk(request, product_id):
         selling_price = parsed_data.get("selling_price")
         description = parsed_data.get("description")
         raw_is_active = parsed_data.get("is_active")
-        is_active = str(raw_is_active).lower() == 'true'
+
+        # Pastikan bahwa raw_is_active tidak None dan lakukan konversi
+        if raw_is_active is None:
+            return Response.badRequest(request, message="Keterangan (is_active) is required", messagetype="E")
+
+        # Konversi dan cek apakah nilai raw_is_active adalah 'true'
+        print("Raw is_active received:", raw_is_active)  # Ini akan memastikan bahwa nilai diterima dengan benar
+        is_active = str(raw_is_active).strip().lower() == 'true'
+        print("is_active value after conversion:", is_active)  # Ini akan memastikan bahwa nilai konversi benar
+
 
         if not all([product_code, product_name, store_id, stock, product_type, capital_price, selling_price, description]):
             return Response.badRequest(request, message="All fields are required", messagetype="E")
