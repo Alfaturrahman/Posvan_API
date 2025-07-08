@@ -36,4 +36,11 @@ urlpatterns = [
     path('detail_stok_basah/', views.detail_stok_basah, name='detail_stok_basah'),
     path('update_stok_basah/', views.update_stok_basah, name='update_stok_basah'),
     path('delete_stok_basah/<int:stock_entry_id>/', views.delete_stok_basah, name='delete_stok_basah'),
+    # Pengeluaran
+    path('list_pengeluaran/', views.list_pengeluaran, name='list_pengeluaran'),
+    path('data_edit_pengeluaran/', views.data_edit_pengeluaran, name='data_edit_pengeluaran'),
+    path('insert_pengeluaran/', views.insert_pengeluaran, name='insert_pengeluaran'),
+    path('update_pengeluaran/', views.update_pengeluaran, name='update_pengeluaran'),
+    path('delete_pengeluaran/<int:other_expenses_id>/', views.delete_pengeluaran, name='delete_pengeluaran'),
+
 ]

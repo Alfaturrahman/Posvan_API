@@ -1400,3 +1400,233 @@ def delete_stok_basah(request, stock_entry_id):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
+# Pengeluaran - Pengeluaran lainnya 
+
+@jwt_required
+@csrf_exempt
+def list_pengeluaran(request):
+    try:
+        with transaction.atomic():
+            store_id = request.GET.get("store_id")
+
+            if not store_id:
+                return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
+
+            list_pengeluaran = execute_query(
+                """
+                    SELECT * FROM tbl_other_expenses WHERE store_id = %s;
+                """,
+                params=(store_id,)  # <- ini beneran tuple
+            )
+
+            return Response.ok(data=list_pengeluaran, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def insert_pengeluaran(request):
+    try:
+        validate_method(request, "POST")
+        now = datetime.datetime.now()
+
+        data = {}
+        proof_of_expenses = None
+        proof_of_expenses_base64 = None
+        proof_of_expenses_url = None
+
+        if request.content_type.startswith('application/json'):
+            body = json.loads(request.body)
+            data['date'] = body.get("date")
+            data['store_id'] = body.get("store_id")
+            data['description'] = body.get("description")
+            data['spending'] = body.get("spending")
+            data['type_expenses'] = body.get("type_expenses")
+            proof_of_expenses_url = body.get("proof_of_expenses")  # URL string
+            proof_of_expenses_base64 = body.get("proof_of_expenses_base64")  # optional base64 string
+        else:
+            data['date'] = request.POST.get("date")
+            data['store_id'] = request.POST.get("store_id")
+            data['description'] = request.POST.get("description")
+            data['spending'] = request.POST.get("spending")
+            data['type_expenses'] = request.POST.get("type_expenses")
+            proof_of_expenses = request.FILES.get("proof_of_expenses")
+
+        # Validasi field wajib
+        if not all([data['date'], data['store_id'], data['description'], data['spending'], data['type_expenses']]):
+            return Response.badRequest(request, message="All fields are required", messagetype="E")
+
+        # Proses upload proof_of_expenses
+        if proof_of_expenses:  # file upload
+            fs = FileSystemStorage()
+            filename = fs.save(proof_of_expenses.name, proof_of_expenses)
+            proof_of_expenses_url = fs.url(filename)
+        elif proof_of_expenses_base64:  # base64 upload
+            import base64
+            from django.core.files.base import ContentFile
+            format, imgstr = proof_of_expenses_base64.split(';base64,')
+            ext = format.split('/')[-1]
+            file_name = f"bukti_pengeluaran_{now.strftime('%Y%m%d%H%M%S')}.{ext}"
+            data_file = ContentFile(base64.b64decode(imgstr), name=file_name)
+            fs = FileSystemStorage()
+            filename = fs.save(file_name, data_file)
+            proof_of_expenses_url = fs.url(filename)
+        elif proof_of_expenses_url:
+            pass  # sudah dapat URL dari JSON
+        else:
+            return Response.badRequest(request, message="proof_of_expenses is required", messagetype="E")
+
+        # Insert ke tbl_other_expenses
+        other_expenses_id = insert_get_id_data(
+            table_name="tbl_other_expenses",
+            data={
+                "date": data['date'],
+                "store_id": data['store_id'],
+                "description": data['description'],
+                "spending": data['spending'],
+                "proof_of_expenses": proof_of_expenses_url,
+                "type_expenses": data['type_expenses'],
+                "created_at": now
+            },
+            column_id="other_expenses_id"
+        )
+
+        return Response.ok(
+            data={"other_expenses_id": other_expenses_id, "proof_of_expenses_url": proof_of_expenses_url},
+            message="Pengeluaran berhasil ditambahkan",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def update_pengeluaran(request):
+    try:
+        validate_method(request, "POST")
+        now = datetime.datetime.now()
+
+        data = {}
+        proof_of_expenses = None
+        proof_of_expenses_base64 = None
+        proof_of_expenses_url = None
+
+        if request.content_type.startswith('application/json'):
+            body = json.loads(request.body)
+            data['other_expenses_id'] = body.get("other_expenses_id")
+            data['store_id'] = body.get("store_id")
+            data['date'] = body.get("date")
+            data['description'] = body.get("description")
+            data['spending'] = body.get("spending")
+            data['type_expenses'] = body.get("type_expenses")
+            proof_of_expenses_url = body.get("proof_of_expenses")  # pakai url lama
+            proof_of_expenses_base64 = body.get("proof_of_expenses_base64")  # optional base64
+        elif request.content_type.startswith('multipart/form-data'):
+            data['other_expenses_id'] = request.POST.get("other_expenses_id")
+            data['store_id'] = request.POST.get("store_id")
+            data['date'] = request.POST.get("date")
+            data['description'] = request.POST.get("description")
+            data['spending'] = request.POST.get("spending")
+            data['type_expenses'] = request.POST.get("type_expenses")
+            proof_of_expenses = request.FILES.get("proof_of_expenses")  # file baru
+            proof_of_expenses_url = request.POST.get("proof_of_expenses_url")  # pakai url lama
+        else:
+            return Response.badRequest(request, message="Unsupported content type", messagetype="E")
+
+        # Validasi
+        if not all([data['other_expenses_id'], data['store_id'], data['date'], data['description'], data['spending'], data['type_expenses']]):
+            return Response.badRequest(request, message="Semua field wajib diisi", messagetype="E")
+
+        # Handle proof_of_expenses
+        if proof_of_expenses:
+            fs = FileSystemStorage()
+            filename = fs.save(proof_of_expenses.name, proof_of_expenses)
+            proof_of_expenses_url = fs.url(filename)
+        elif proof_of_expenses_base64:
+            import base64
+            from django.core.files.base import ContentFile
+            format, imgstr = proof_of_expenses_base64.split(';base64,')
+            ext = format.split('/')[-1]
+            file_name = f"bukti_update_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+            data_file = ContentFile(base64.b64decode(imgstr), name=file_name)
+            fs = FileSystemStorage()
+            filename = fs.save(file_name, data_file)
+            proof_of_expenses_url = fs.url(filename)
+        elif proof_of_expenses_url:
+            pass
+        else:
+            return Response.badRequest(request, message="proof_of_expenses is required", messagetype="E")
+
+        # Update data
+        update_data(
+            table_name="tbl_other_expenses",
+            filters={"other_expenses_id": data['other_expenses_id']},
+            data={
+                "store_id": data['store_id'],
+                "date": data['date'],
+                "description": data['description'],
+                "spending": data['spending'],
+                "type_expenses": data['type_expenses'],
+                "proof_of_expenses": proof_of_expenses_url,
+                "created_at": now
+            }
+        )
+
+        return Response.ok(
+            data={"other_expenses_id": data['other_expenses_id'], "proof_of_expenses_url": proof_of_expenses_url},
+            message="Pengeluaran berhasil diupdate",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def delete_pengeluaran(request,other_expenses_id):
+    try:
+        
+        if not other_expenses_id:
+            return Response.badRequest(request, message="other_expenses_id harus disertakan", messagetype="E")
+
+        # Hapus data
+        delete_data(
+            table_name="tbl_other_expenses",
+            filters={"other_expenses_id": other_expenses_id}
+        )
+
+        return Response.ok(message="Pengeluaran berhasil dihapus", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def data_edit_pengeluaran(request):
+    try:
+        other_expenses_id = request.GET.get("other_expenses_id")
+        if not other_expenses_id:
+            return Response.badRequest(
+                request, message="other_expenses_id harus disertakan", messagetype="E"
+            )
+
+        # Ambil data other_expenses
+        other_expenses = first_data(
+            table_name="tbl_other_expenses",
+            filters={"other_expenses_id": other_expenses_id},
+        )
+
+        if not other_expenses:
+            return Response.badRequest(request, message="Data tidak ditemukan", messagetype="E")
+
+        return Response.ok(data=other_expenses, message="Detail pengeluaran berhasil diambil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
