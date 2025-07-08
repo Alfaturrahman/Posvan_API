@@ -23,7 +23,7 @@ def register_store_owner(request):
 
         required_fields = [
             "email", "name_owner", "no_nik", "no_hp", "store_name", "store_address",
-            "description", "package_id", "submission_code", "no_virtual_account", "start_date", "end_date"
+            "description", "package_id", "no_virtual_account", "start_date", "end_date"
         ]
 
         for field in required_fields:
@@ -37,6 +37,24 @@ def register_store_owner(request):
 
         if email_count > 0:
             return Response.badRequest(request, message="Email is already registered", messagetype='E')
+
+        # Generate submission_code otomatis (format SBS001, SBS002, ...)
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT submission_code FROM public.tbl_store_owners
+                WHERE submission_code LIKE 'SBS%%'
+                ORDER BY submission_code DESC
+                LIMIT 1
+            """)
+            last_code_row = cursor.fetchone()
+            if last_code_row:
+                last_code = last_code_row[0]
+                last_number = int(last_code.replace("SBS", ""))
+                new_number = last_number + 1
+            else:
+                new_number = 1
+
+            generated_submission_code = f"SBS{new_number:03d}"
 
         # File handling
         store_picture = request.FILES.get('store_picture')
@@ -59,6 +77,7 @@ def register_store_owner(request):
 
         with transaction.atomic():
             with connection.cursor() as cursor:
+                # Simpan data ke tbl_store_owners
                 cursor.execute("""
                     INSERT INTO public.tbl_store_owners (
                         email, name_owner, no_nik, no_hp, store_name, store_address,
@@ -73,13 +92,14 @@ def register_store_owner(request):
                     data["email"], data["name_owner"], data["no_nik"], data["no_hp"],
                     data["store_name"], data["store_address"], data["description"], data["package_id"],
                     statement_letter_path, store_picture_path, ktp_picture_path,
-                    business_license_path, data["submission_code"],
+                    business_license_path, generated_submission_code,
                     data["no_virtual_account"], False, "In Progress", False,
                     data["start_date"], data["end_date"]
                 ])
 
                 store_id = cursor.fetchone()[0]
 
+                # Simpan user baru ke tbl_user
                 cursor.execute("""
                     INSERT INTO public.tbl_user (
                         user_id, email, "Password", role_id, created_at, role_name, reference_id

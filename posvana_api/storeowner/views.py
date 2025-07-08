@@ -210,9 +210,12 @@ def insert_order(request):
                     table_name="tbl_products",
                     filters={"product_id": product_id}
                 )
-                
-                if stok_produk and stok_produk[0]['stock'] < quantity:
+                if not stok_produk:
+                    return Response.badRequest(request, message=f"Produk dengan id {product_id} tidak ditemukan", messagetype="E")
+
+                if stok_produk[0]['stock'] < quantity:
                     return Response.badRequest(request, message=f"Stok produk {stok_produk[0]['product_name']} tidak mencukupi", messagetype="E")
+
 
                 # Kurangi stok produk
                 new_stock = stok_produk[0]['stock'] - quantity
@@ -242,6 +245,134 @@ def insert_order(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+    
+@jwt_required
+@csrf_exempt
+def update_order(request):
+    try:
+        validate_method(request, "PUT")
+        with transaction.atomic():
+            order_id = request.GET.get("order_id")
+            if not order_id:
+                return Response.badRequest(request, message="order_id harus disertakan", messagetype="E")
+
+            json_data = json.loads(request.body)
+
+            # Validasi fields wajib di tbl_orders
+            required_fields = ["date", "total_amount", "order_status", "payment_method", "order_items"]
+            for field in required_fields:
+                if field not in json_data:
+                    return Response.badRequest(request, message=f"Field '{field}' wajib diisi", messagetype="E")
+
+            now = localtime(timezone.now())
+
+            # Ambil data order lama untuk kembalikan stok produk
+            old_items = get_data(
+                table_name="tbl_order_items",
+                filters={"order_id": order_id}
+            )
+
+            for old_item in old_items:
+                product_id = old_item["product_id"]
+                quantity = old_item["item"]
+
+                # Tambahkan lagi stok yang pernah dikurangi
+                stok_produk = get_data(
+                    table_name="tbl_products",
+                    filters={"product_id": product_id}
+                )
+                if stok_produk:
+                    new_stock = stok_produk[0]['stock'] + quantity
+                    update_data(
+                        table_name="tbl_products",
+                        data={"stock": new_stock},
+                        filters={"product_id": product_id}
+                    )
+
+            # Hapus order_items lama
+            delete_data(
+                table_name="tbl_order_items",
+                filters={"order_id": order_id}
+            )
+
+            # Update data tbl_orders
+            update_fields = {
+                "customer_name": json_data.get("customer_name", ""),
+                "date": json_data["date"],
+                "total_amount": json_data["total_amount"],
+                "remarks": json_data.get("remarks", ""),
+                "pickup_date": json_data.get("pickup_date", None),
+                "pickup_time": json_data.get("pickup_time", None),
+                "role_id": json_data.get("role_id", None),
+                "reference_id": json_data.get("reference_id", None),
+                "no_hp": json_data.get("no_hp", ""),
+                "delivery_address": json_data.get("delivery_address", ""),
+                "is_pre_order": json_data.get("is_pre_order", False),
+                "is_delivered": json_data.get("is_delivered", False),
+                "is_dine_in": json_data.get("is_dine_in", False),
+                "order_status": json_data["order_status"],
+                "payment_method": json_data["payment_method"],
+                "updated_at": now
+            }
+            update_data(
+                table_name="tbl_orders",
+                data=update_fields,
+                filters={"order_id": order_id}
+            )
+
+            # Insert ulang order_items baru
+            order_items = json_data["order_items"]
+            if not order_items:
+                return Response.badRequest(request, message="Order harus punya minimal 1 produk", messagetype="E")
+
+            for item in order_items:
+                item_required_fields = ["product_id", "selling_price", "product_type", "item"]
+                for f in item_required_fields:
+                    if f not in item:
+                        return Response.badRequest(request, message=f"Field '{f}' di order_items wajib diisi", messagetype="E")
+
+                product_id = item["product_id"]
+                quantity = item["item"]
+
+                # Cek stok cukup
+                stok_produk = get_data(
+                    table_name="tbl_products",
+                    filters={"product_id": product_id}
+                ) 
+
+                if not stok_produk:
+                    return Response.badRequest(request, message=f"Produk dengan id {product_id} tidak ditemukan", messagetype="E")
+
+                if stok_produk[0]['stock'] < quantity:
+                    return Response.badRequest(request, message=f"Stok produk {stok_produk[0]['product_name']} tidak mencukupi", messagetype="E")
+                # Kurangi stok
+                new_stock = stok_produk[0]['stock'] - quantity
+                update_data(
+                    table_name="tbl_products",
+                    data={"stock": new_stock},
+                    filters={"product_id": product_id}
+                )
+
+                # Insert ke tbl_order_items
+                item_data = {
+                    "order_id": order_id,
+                    "product_id": product_id,
+                    "selling_price": item["selling_price"],
+                    "product_type": item["product_type"],
+                    "item": quantity,
+                    "created_at": now
+                }
+                insert_data(
+                    table_name="tbl_order_items",
+                    data=item_data
+                )
+
+        return Response.ok(data={"order_id": order_id}, message="Pesanan berhasil diupdate", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
 
 def generate_order_code():
     # Ambil jumlah order yang sudah ada
@@ -363,12 +494,13 @@ def insert_produk(request):
         store_id = request.POST.get("store_id")
         stock = request.POST.get("stock")
         product_type = request.POST.get("product_type")  # makanan / minuman
+        selling_type = request.POST.get("selling_type")  # harian / permanen
         capital_price = request.POST.get("capital_price")
         selling_price = request.POST.get("selling_price")
         description = request.POST.get("description")
         is_active = request.POST.get("is_active")
 
-        if not all([product_name, store_id, stock, product_type, capital_price, selling_price, description]):
+        if not all([product_name, store_id, stock, product_type, capital_price, selling_price, description, selling_type]):
             return Response.badRequest(request, message="All fields are required", messagetype="E")
 
         if not request.FILES.get("product_picture"):
@@ -413,6 +545,7 @@ def insert_produk(request):
             "store_id": store_id,
             "stock": stock,
             "product_type": product_type,
+            "selling_type": selling_type,   
             "capital_price": capital_price,
             "selling_price": selling_price,
             "description": description,
@@ -461,6 +594,7 @@ def update_produk(request, product_id):
         store_id = parsed_data.get("store_id")
         stock = parsed_data.get("stock")
         product_type = parsed_data.get("product_type")
+        selling_type = parsed_data.get("selling_type")
         capital_price = parsed_data.get("capital_price")
         selling_price = parsed_data.get("selling_price")
         description = parsed_data.get("description")
@@ -476,7 +610,7 @@ def update_produk(request, product_id):
         print("is_active value after conversion:", is_active)  # Ini akan memastikan bahwa nilai konversi benar
 
 
-        if not all([product_code, product_name, store_id, stock, product_type, capital_price, selling_price, description]):
+        if not all([product_code, product_name, store_id, stock, product_type, selling_type, capital_price, selling_price, description]):
             return Response.badRequest(request, message="All fields are required", messagetype="E")
 
         product_picture = parsed_files.get("product_picture")
@@ -509,6 +643,7 @@ def update_produk(request, product_id):
             "store_id": store_id,
             "stock": stock,
             "product_type": product_type,
+            "selling_type": selling_type,  
             "capital_price": capital_price,
             "selling_price": selling_price,
             "description": description,
@@ -586,6 +721,66 @@ def update_status(request):
         return Response.ok(
             data={"product_id": product_id, "is_active": is_active_bool},
             message="Status produk berhasil diperbarui",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(
+            request, message=str(e), messagetype="E"
+        )
+
+@jwt_required
+@csrf_exempt
+def update_stock(request):
+    try:
+        # Pastikan metode adalah PUT
+        if request.method != "PUT":
+            return Response.badRequest(
+                request, message="Invalid HTTP method, expected PUT", messagetype="E"
+            )
+
+        # Ambil parameter
+        product_id = request.GET.get("product_id")
+        new_stock = request.GET.get("new_stock")
+
+        # Validasi product_id
+        if not product_id:
+            return Response.badRequest(
+                request, message="Product ID is required", messagetype="E"
+            )
+
+        # Validasi new_stock
+        if new_stock is None:
+            return Response.badRequest(
+                request, message="new_stock is required", messagetype="E"
+            )
+
+        try:
+            new_stock_int = int(new_stock)
+            if new_stock_int < 0:
+                return Response.badRequest(
+                    request, message="new_stock must be >= 0", messagetype="E"
+                )
+        except ValueError:
+            return Response.badRequest(
+                request, message="new_stock must be an integer", messagetype="E"
+            )
+
+        # Update database
+        now = datetime.datetime.now()
+        update_data(
+            table_name="tbl_products",
+            data={
+                "stock": new_stock_int,
+                "update_at": now
+            },
+            filters={"product_id": int(product_id)}
+        )
+
+        return Response.ok(
+            data={"product_id": product_id, "new_stock": new_stock_int},
+            message="Stok produk berhasil diperbarui",
             messagetype="S"
         )
 
@@ -879,4 +1074,329 @@ def update_open_status(request):
         return Response.badRequest(
             request, message=str(e), messagetype="E"
         )
+    
+@jwt_required
+@csrf_exempt
+def uang_keluar(request):
+    try:
+        with transaction.atomic():
+            store_id = request.GET.get("store_id")
+
+            if not store_id:
+                return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
+
+            uang_keluar = get_data(
+                    table_name="tbl_other_expenses",
+                    filters={"store_id": store_id}
+                )
+            
+            # list_antrian = execute_query(
+            #     """
+            #         SELECT * FROM public.antrian_info_by_store(%s);
+            #     """,
+            #     params=(store_id,)  
+            # )
+
+            return Response.ok(data=uang_keluar, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+# Pengeluaran - Stock Basah
+
+@jwt_required
+@csrf_exempt
+def list_stok_basah(request):
+    try:
+        with transaction.atomic():
+            store_id = request.GET.get("store_id")
+
+            if not store_id:
+                return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
+
+            uang_keluar = execute_query(
+                """
+                    SELECT * FROM view_stock_entry_with_summary WHERE store_id = %s;
+                """,
+                params=(store_id,)  # <- ini beneran tuple
+            )
+
+            return Response.ok(data=uang_keluar, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def insert_stok_basah(request):
+    try:
+        validate_method(request, "POST")
+
+        data = {}
+        proof_of_payment = None
+        proof_of_payment_base64 = None
+
+        if request.content_type.startswith('application/json'):
+            body = json.loads(request.body)
+            data['date'] = body.get("date")
+            data['place'] = body.get("place")
+            data['officer'] = body.get("officer")
+            data['store_id'] = body.get("store_id")
+            data['items'] = body.get("items")
+            proof_of_payment_url = body.get("proof_of_payment")  # URL string
+            proof_of_payment_base64 = body.get("proof_of_payment_base64")  # optional base64 string
+        else:
+            data['date'] = request.POST.get("date")
+            data['place'] = request.POST.get("place")
+            data['officer'] = request.POST.get("officer")
+            data['store_id'] = request.POST.get("store_id")
+            data['items'] = request.POST.get("items")
+            proof_of_payment = request.FILES.get("proof_of_payment")
+
+        # Validasi field
+        if not all([data['date'], data['place'], data['officer'], data['store_id'], data['items']]):
+            return Response.badRequest(request, message="All fields are required", messagetype="E")
+
+        # Upload proof_of_payment
+        if proof_of_payment:  # form-data upload file
+            fs = FileSystemStorage()
+            filename = fs.save(proof_of_payment.name, proof_of_payment)
+            proof_of_payment_url = fs.url(filename)
+        elif proof_of_payment_base64:  # base64 upload
+            import base64
+            from django.core.files.base import ContentFile
+            format, imgstr = proof_of_payment_base64.split(';base64,')
+            ext = format.split('/')[-1]
+            file_name = f"bukti_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+            data_file = ContentFile(base64.b64decode(imgstr), name=file_name)
+            fs = FileSystemStorage()
+            filename = fs.save(file_name, data_file)
+            proof_of_payment_url = fs.url(filename)
+        elif proof_of_payment_url:  # link langsung
+            pass  # sudah dapat URL dari JSON, langsung dipakai
+        else:
+            return Response.badRequest(request, message="proof_of_payment is required", messagetype="E")
+
+        # Insert ke tbl_stock_entry
+        now = datetime.datetime.now()
+        stock_entry_id = insert_get_id_data(
+            table_name="tbl_stock_entry",
+            data={
+                "date": data['date'],
+                "place": data['place'],
+                "officer": data['officer'],
+                "store_id": data['store_id'],
+                "proof_of_payment": proof_of_payment_url,
+                "created_at": now
+            },
+            column_id="stock_entry_id"
+        )
+
+        # Insert items (parsing JSON string kalau form-data)
+        if isinstance(data['items'], str):
+            items = json.loads(data['items'])
+        else:
+            items = data['items']
+
+        for item in items:
+            insert_data(
+                table_name="tbl_stock_items",
+                data={
+                    "stock_entry_id": stock_entry_id,
+                    "item_name": item['item_name'],
+                    "unit": item['unit'],
+                    "unit_price": item['unit_price'],
+                    "quantity": item['quantity'],
+                    "sub_total": item['sub_total'],
+                    "created_at": now
+                }
+            )
+
+        return Response.ok(
+            data={"stock_entry_id": stock_entry_id, "proof_of_payment_url": proof_of_payment_url},
+            message="Stok basah berhasil ditambahkan",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def detail_stok_basah(request):
+    try:
+        stock_entry_id = request.GET.get("stock_entry_id")
+        if not stock_entry_id:
+            return Response.badRequest(
+                request, message="stock_entry_id harus disertakan", messagetype="E"
+            )
+
+        # Ambil data stock_entry
+        stock_entry = first_data(
+            table_name="tbl_stock_entry",
+            filters={"stock_entry_id": stock_entry_id},
+        )
+
+        if not stock_entry:
+            return Response.badRequest(request, message="Data tidak ditemukan", messagetype="E")
+
+        # Ambil data items
+        items = get_data(
+            table_name="tbl_stock_items",
+            filters={"stock_entry_id": stock_entry_id}
+        )
+
+        # Tambahkan kategori ke setiap item
+        for item in items:
+            item["kategori"] = "Bahan Baku"
+
+        # Gabungkan items ke stock_entry
+        stock_entry["items"] = items
+
+        data = {
+            "stock_entry": stock_entry
+        }
+
+        return Response.ok(data=data, message="Detail stok basah berhasil diambil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def update_stok_basah(request):
+    try:
+        validate_method(request, "POST")
+        now = datetime.datetime.now()
+
+        data = {}
+        proof_of_payment = None
+        proof_of_payment_base64 = None
+        proof_of_payment_url = None
+
+        if request.content_type.startswith('application/json'):
+            body = json.loads(request.body)
+            data['stock_entry_id'] = body.get("stock_entry_id")
+            data['date'] = body.get("date")
+            data['place'] = body.get("place")
+            data['officer'] = body.get("officer")
+            data['store_id'] = body.get("store_id")
+            data['items'] = body.get("items")
+            proof_of_payment_url = body.get("proof_of_payment")  # URL string
+            proof_of_payment_base64 = body.get("proof_of_payment_base64")  # optional base64
+        elif request.content_type.startswith('multipart/form-data'):
+            data['stock_entry_id'] = request.POST.get("stock_entry_id")
+            data['date'] = request.POST.get("date")
+            data['place'] = request.POST.get("place")
+            data['officer'] = request.POST.get("officer")
+            data['store_id'] = request.POST.get("store_id")
+            data['items'] = request.POST.get("items")
+            proof_of_payment = request.FILES.get("proof_of_payment")  # new file
+            proof_of_payment_url = request.POST.get("proof_of_payment_url")  # old url
+        else:
+            return Response.badRequest(request, message="Unsupported content type", messagetype="E")
+
+        # Validasi field wajib
+        if not all([data['stock_entry_id'], data['date'], data['place'], data['officer'], data['store_id'], data['items']]):
+            return Response.badRequest(request, message="Semua field wajib diisi", messagetype="E")
+
+        # Proses proof_of_payment
+        if proof_of_payment:  # form-data upload file
+            fs = FileSystemStorage()
+            filename = fs.save(proof_of_payment.name, proof_of_payment)
+            proof_of_payment_url = fs.url(filename)
+        elif proof_of_payment_base64:  # base64 upload
+            import base64
+            from django.core.files.base import ContentFile
+            format, imgstr = proof_of_payment_base64.split(';base64,')
+            ext = format.split('/')[-1]
+            file_name = f"bukti_update_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+            data_file = ContentFile(base64.b64decode(imgstr), name=file_name)
+            fs = FileSystemStorage()
+            filename = fs.save(file_name, data_file)
+            proof_of_payment_url = fs.url(filename)
+        elif proof_of_payment_url:
+            pass  # pakai url lama
+        else:
+            return Response.badRequest(request, message="proof_of_payment is required", messagetype="E")
+
+        # Parse items
+        if isinstance(data['items'], str):
+            items = json.loads(data['items'])
+        else:
+            items = data['items']
+
+        # Update tbl_stock_entry
+        update_data(
+            table_name="tbl_stock_entry",
+            filters={"stock_entry_id": data['stock_entry_id']},
+            data={
+                "date": data['date'],
+                "place": data['place'],
+                "officer": data['officer'],
+                "store_id": data['store_id'],
+                "proof_of_payment": proof_of_payment_url,
+                "created_at": now
+            }
+        )
+
+        # Hapus items lama, insert baru
+        delete_data(
+            table_name="tbl_stock_items",
+            filters={"stock_entry_id": data['stock_entry_id']}
+        )
+
+        for item in items:
+            insert_data(
+                table_name="tbl_stock_items",
+                data={
+                    "stock_entry_id": data['stock_entry_id'],
+                    "item_name": item['item_name'],
+                    "unit": item['unit'],
+                    "unit_price": item['unit_price'],
+                    "quantity": item['quantity'],
+                    "sub_total": item['sub_total'],
+                    "created_at": now
+                }
+            )
+
+        return Response.ok(
+            data={"stock_entry_id": data['stock_entry_id'], "proof_of_payment_url": proof_of_payment_url},
+            message="Stok basah berhasil diupdate",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def delete_stok_basah(request, stock_entry_id):
+    try:
+
+        if not stock_entry_id:
+            return Response.badRequest(request, message="stock_entry_id harus disertakan", messagetype="E")
+
+        # Hapus detail items dulu
+        delete_data(
+            table_name="tbl_stock_items",
+            filters={"stock_entry_id": stock_entry_id}
+        )
+
+        # Hapus entry utamanya
+        delete_data(
+            table_name="tbl_stock_entry",
+            filters={"stock_entry_id": stock_entry_id}
+        )
+
+        return Response.ok(message="Stok basah berhasil dihapus", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
 

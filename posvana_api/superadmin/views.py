@@ -51,7 +51,8 @@ def show_store_owners(request):
 
             store_owners = get_data(
                 table_name="tbl_store_owners",
-                filters=filters
+                filters=filters,
+                order_by="created_at DESC"
             )
 
             return Response.ok(

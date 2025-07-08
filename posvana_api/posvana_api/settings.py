@@ -137,7 +137,8 @@ CORS_ALLOW_ALL_ORIGINS = False  # Untuk development saja!
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Replace with your frontend URL
-    "https://your-frontend.com",  # Add your production frontend URL here
+    "http://localhost:3001",  # Replace with your frontend URL
+    "http://10.170.17.221:3000",  # Add your production frontend URL here
     'https://posvanapi-production.up.railway.app',  # ✅ Tambahkan https://
 ]
 

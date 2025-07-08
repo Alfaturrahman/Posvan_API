@@ -7,6 +7,7 @@ urlpatterns = [
     # Kasir
     path('list_antrian/', views.list_antrian, name='list_antrian'),
     path('insert_order/', views.insert_order, name='insert_order'),
+    path('update_order/', views.update_order, name='update_order'),
     path('update_order_status/<int:order_id>/', views.update_order_status, name='update_order_status'),
     # Laporan Keuntungan
     path('laporan_keutungan_dashboard/', views.laporan_keutungan_dashboard, name='laporan_keutungan_dashboard'),
@@ -16,6 +17,7 @@ urlpatterns = [
     path('summary_produk/', views.summary_produk, name='summary_produk'),
     path('insert_produk/', views.insert_produk, name='insert_produk'),
     path('update_status/', views.update_status, name='update_status'),
+    path('update_stock/', views.update_stock, name='update_stock'),
     path('update_produk/<int:product_id>/', views.update_produk, name='update_produk'),
     path('delete_produk/<int:product_id>/', views.delete_produk, name='delete_produk'),
     # Page Menu
@@ -28,4 +30,10 @@ urlpatterns = [
     path('update_profile/<int:store_id>/', views.update_profile, name='update_profile'),
     # Update Status Toko
     path('update_open_status/', views.update_open_status, name='update_open_status'),
+    # Stok Basah
+    path('list_stok_basah/', views.list_stok_basah, name='list_stok_basah'),
+    path('insert_stok_basah/', views.insert_stok_basah, name='insert_stok_basah'),
+    path('detail_stok_basah/', views.detail_stok_basah, name='detail_stok_basah'),
+    path('update_stok_basah/', views.update_stok_basah, name='update_stok_basah'),
+    path('delete_stok_basah/<int:stock_entry_id>/', views.delete_stok_basah, name='delete_stok_basah'),
 ]
