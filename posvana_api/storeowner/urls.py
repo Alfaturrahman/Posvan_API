@@ -42,5 +42,8 @@ urlpatterns = [
     path('insert_pengeluaran/', views.insert_pengeluaran, name='insert_pengeluaran'),
     path('update_pengeluaran/', views.update_pengeluaran, name='update_pengeluaran'),
     path('delete_pengeluaran/<int:other_expenses_id>/', views.delete_pengeluaran, name='delete_pengeluaran'),
+    # Uang Keluar
+    path('laporan_uang_keluar/', views.laporan_uang_keluar, name='laporan_uang_keluar'),
+    path('detail_pengeluaran/', views.detail_pengeluaran, name='detail_pengeluaran'),
 
 ]

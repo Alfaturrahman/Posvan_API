@@ -1630,3 +1630,107 @@ def data_edit_pengeluaran(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+
+# Laporan - Uang Keluar
+
+@jwt_required
+@csrf_exempt
+def laporan_uang_keluar(request):
+    try:
+        store_id = request.GET.get("store_id")
+
+        if not store_id:
+            return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
+
+        list_pengeluaran = execute_query(
+            """
+                SELECT * FROM vw_pengeluaran_semua WHERE store_id = %s;
+            """,
+            params=(store_id,)  
+        )
+
+        return Response.ok(data=list_pengeluaran, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+
+@jwt_required
+@csrf_exempt
+def detail_pengeluaran(request):
+    try:
+        with transaction.atomic():
+            source = request.GET.get("source")
+            id = request.GET.get("id")  # ini bisa stock_entry_id atau other_expenses_id
+
+            if not source or not id:
+                return Response.badRequest(
+                    request,
+                    message="Parameter source dan id harus disertakan",
+                    messagetype="E",
+                )
+
+            data = None
+
+            if source == "stock_entry":
+                # Ambil detail stock_entry beserta itemnya
+                data_header = execute_query(
+                    """
+                    SELECT stock_entry_id, date, place, officer, proof_of_payment, created_at, store_id
+                    FROM tbl_stock_entry
+                    WHERE stock_entry_id = %s
+                    """,
+                    params=(id,)
+                )
+                data_items = execute_query(
+                    """
+                    SELECT stock_item_id, item_name, unit, unit_price, quantity, sub_total, created_at
+                    FROM tbl_stock_items
+                    WHERE stock_entry_id = %s
+                    """,
+                    params=(id,)
+                )
+                if data_header:
+                    data = {
+                        "header": data_header[0],
+                        "items": data_items
+                    }
+                else:
+                    return Response.badRequest(
+                        request,
+                        message="Data stock_entry tidak ditemukan",
+                        messagetype="E",
+                    )
+
+            elif source == "other_expenses":
+                # Ambil detail other_expenses
+                data_detail = execute_query(
+                    """
+                    SELECT other_expenses_id, date, description, spending, proof_of_expenses, type_expenses, created_at, store_id
+                    FROM tbl_other_expenses
+                    WHERE other_expenses_id = %s
+                    """,
+                    params=(id,)
+                )
+                if data_detail:
+                    data = data_detail[0]
+                else:
+                    return Response.badRequest(
+                        request,
+                        message="Data other_expenses tidak ditemukan",
+                        messagetype="E",
+                    )
+
+            else:
+                return Response.badRequest(
+                    request,
+                    message="source harus bernilai 'stock_entry' atau 'other_expenses'",
+                    messagetype="E",
+                )
+
+            return Response.ok(data=data, message="Detail pengeluaran berhasil ditampilkan", messagetype="S")
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
