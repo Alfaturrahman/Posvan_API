@@ -632,3 +632,112 @@ def dashboard_data_store(request):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
     
+
+# NOTIFIKASI
+
+@jwt_required
+@csrf_exempt
+def get_notifications(request):
+    try:
+        user = request.user
+        user_id = user.get("user_id")
+        role = user.get("role")  # 'store_owner', 'customer', 'super_admin'
+
+        search = request.GET.get("search")
+
+        # Ambil notifikasi berdasarkan user_id
+        notif_by_user = get_data(
+            table_name="notifications",
+            filters={"user_id": user_id},
+            search=search,
+            search_columns=["title", "message"]
+        )
+
+        # Ambil notifikasi berdasarkan role
+        notif_by_role = get_data(
+            table_name="notifications",
+            filters={"target_role": role},
+            search=search,
+            search_columns=["title", "message"]
+        )
+
+        # Gabungkan dan hapus duplikat jika perlu
+        combined_notifications = notif_by_user + [
+            n for n in notif_by_role if n not in notif_by_user
+        ]
+
+        # Sort berdasarkan waktu terbaru
+        sorted_notifications = sorted(combined_notifications, key=lambda x: x["created_at"], reverse=True)
+
+        return Response.ok(
+            data=sorted_notifications,
+            message="Notifikasi berhasil diambil",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def insert_notification(request):
+    try:
+        validate_method(request, "POST")
+        json_data = json.loads(request.body)
+
+        required_fields = ["type", "title"]
+        for field in required_fields:
+            if field not in json_data:
+                return Response.badRequest(
+                    request,
+                    message=f"Field '{field}' wajib diisi",
+                    messagetype="E"
+                )
+
+        now = timezone.now()
+
+        data_to_insert = {
+            "user_id": json_data.get("user_id"),
+            "target_role": json_data.get("target_role"),
+            "type": json_data["type"],
+            "title": json_data["title"],
+            "message": json_data.get("message"),
+            "data": json_data.get("data"),
+            "created_at": now,
+            "is_read": False,
+        }
+
+        insert_data("notifications", data_to_insert)
+
+        return Response.ok(
+            message="Notifikasi berhasil ditambahkan",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def mark_notification_read(request, notif_id):
+    try:
+        validate_method(request, "PATCH")
+
+        update_data(
+            table_name="notifications",
+            data={"is_read": True},
+            filters={"id": notif_id}
+        )
+
+        return Response.ok(
+            message="Notifikasi berhasil ditandai sebagai sudah dibaca",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+    

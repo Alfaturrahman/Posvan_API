@@ -17,5 +17,9 @@ urlpatterns = [
     path('detail_pengguna_paket/', views.detail_pengguna_paket, name='detail_pengguna_paket'),
     # Page Dashboard
     path('dashboard_data_store/', views.dashboard_data_store, name='dashboard_data_store'),
-  
+
+    # Notifikasi
+    path('get_notifications/', views.get_notifications, name='get_notifications'),
+    path('insert_notification/', views.insert_notification, name='insert_notification'),
+    path('mark_notification_read/<int:notif_id>', views.mark_notification_read, name='mark_notification_read'),
 ]
