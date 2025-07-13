@@ -14,8 +14,7 @@ import re
 import os
 from posvana_api.utils.email_template import render_email_template
 from django.core.mail import EmailMessage
-
-
+from posvana_api.utils.notification_helper import insert_notification
 
 #Pengajuan Toko (SUPERADMIN)
 
@@ -94,7 +93,7 @@ def validate_store_owner(request):
             return Response.badRequest(request, message="Method tidak diizinkan", messagetype="E")
         
         store_id = request.GET.get("store_id")
-        status = request.GET.get("status")  # Menambahkan status
+        status = request.GET.get("status")  # "Done" atau "Reject"
 
         if not store_id:
             return Response.badRequest(request, message="store_id wajib diisi", messagetype="E")
@@ -102,19 +101,17 @@ def validate_store_owner(request):
         if not status:
             return Response.badRequest(request, message="status wajib diisi", messagetype="E")
 
-        # Pastikan status yang diterima adalah "Done" atau "Reject"
         if status not in ["Done", "Reject"]:
             return Response.badRequest(request, message="status tidak valid", messagetype="E")
 
-        # Check if data exists
         if not exists_data(table_name="tbl_store_owners", filters={"store_id": store_id}):
             return Response.badRequest(request, message="Store owner tidak ditemukan", messagetype="E")
 
-        # Update account_status
+        # Update status validasi store_owner
         update_data(
             table_name="tbl_store_owners",
             data={
-                "account_status": status,  # Mengubah status sesuai parameter
+                "account_status": status,
                 "update_at": timezone.now()
             },
             filters={"store_id": store_id}
@@ -124,7 +121,6 @@ def validate_store_owner(request):
             table_name="tbl_store_owners",
             filters={"store_id": store_id}
         )
-
         if not owner_data:
             return Response.badRequest(request, message="Data store owner tidak ditemukan", messagetype="E")
 
@@ -134,7 +130,11 @@ def validate_store_owner(request):
         store_name = owner_data.get("store_name")
 
         if status == "Done":
-            # Kirim email jika status "Done"
+            notif_title = "Akun Toko Divalidasi"
+            notif_message = f"Akun toko {store_name} Anda telah berhasil divalidasi dan aktif."
+            notif_type = "store_validation"
+
+            # Kirim email validasi sukses
             context = {
                 "full_name": full_name,
                 "store_name": store_name,
@@ -158,13 +158,18 @@ def validate_store_owner(request):
                 message=email_body,
                 content_type='text/html'
             )
-        elif status == "Reject":
-            # Kirim email jika status "Reject"
+        
+        else:  # status == "Reject"
+            notif_title = "Pengajuan Akun Ditolak"
+            notif_message = f"Pengajuan akun toko {store_name} Anda ditolak. Silakan daftar ulang."
+            notif_type = "store_validation_reject"
+
+            # Kirim email penolakan
             context = {
                 "full_name": full_name,
                 "store_name": store_name,
                 "email": email,
-                "registration_url": "https://posvana.com/daftar-ulangan"  # URL untuk pendaftaran ulang
+                "registration_url": "https://posvana.com/daftar-ulangan"
             }
 
             template_path = os.path.abspath(
@@ -179,7 +184,20 @@ def validate_store_owner(request):
                 content_type='text/html'
             )
 
-        return Response.ok(message=f"Akun berhasil {status.lower()} & email VA telah dikirim" if status == "Done" else "Akun berhasil ditolak, email pemberitahuan telah dikirim", messagetype="S")
+        # Insert notifikasi ke store_owner
+        insert_notification(
+            user_id=store_id,
+            target_role='store_owner',
+            notif_type=notif_type,
+            title=notif_title,
+            message=notif_message,
+            data=json.dumps({"store_id": store_id, "status": status})
+        )
+
+        return Response.ok(
+            message=f"Akun berhasil {status.lower()} & email VA telah dikirim" if status == "Done" else "Akun berhasil ditolak, email pemberitahuan telah dikirim",
+            messagetype="S"
+        )
 
     except Exception as e:
         log_exception(request, e)
@@ -215,17 +233,16 @@ def verify_payment(request):
             table_name="tbl_store_owners",
             filters={"store_id": store_id}
         )
-
         if not owner_data:
             return Response.badRequest(request, message="Data store owner tidak ditemukan", messagetype="E")
-
+        
         owner_data = owner_data[0]
 
         # Ambil data dasar store owner
         email = owner_data.get("email")
-        full_name = owner_data.get("name_owner")
-        store_name = owner_data.get("store_name")
-        password = "securePassword123"
+        full_name = owner_data.get("name_owner") or "Store Owner"
+        store_name = owner_data.get("store_name") or "-"
+        password = "securePassword123"   # HARDCODE, sesuaikan kalau pakai real
         login_url = "http://localhost:3000/Login"
         virtual_account = owner_data.get("no_virtual_account", "-")
 
@@ -246,9 +263,7 @@ def verify_payment(request):
                 package_type = package.get("package_name", "-")
                 package_price = package.get("price", "-")
 
-        
         # Update status payment_status dan is_active
-        print("[DEBUG] Melakukan update payment_status ke True dan is_active ke True")
         update_data(
             table_name="tbl_store_owners",
             data={
@@ -261,8 +276,8 @@ def verify_payment(request):
 
         # Kirim email verifikasi akun
         context = {
-            "full_name": full_name or "Store Owner",
-            "store_name": store_name or "-",
+            "full_name": full_name,
+            "store_name": store_name,
             "email": email or "-",
             "password": password,
             "package_duration": package_duration,
@@ -281,7 +296,20 @@ def verify_payment(request):
             to=email,
             subject="Akun Toko Anda Telah Diverifikasi!",
             message=email_body,
-            content_type='text/html'  # Supaya email tampil sebagai HTML
+            content_type='text/html'
+        )
+
+        # Insert notifikasi
+        insert_notification(
+            user_id=store_id,
+            target_role='store_owner',
+            notif_type='payment_verified',
+            title='Pembayaran Diverifikasi',
+            message=f"Pembayaran untuk akun toko {store_name} berhasil diverifikasi. Akun Anda sekarang aktif.",
+            data=json.dumps({
+                "store_id": store_id,
+                "status": "verified"
+            })
         )
 
         return Response.ok(message="Pembayaran berhasil diverifikasi & status akun diupdate", messagetype="S")
@@ -379,10 +407,12 @@ def list_package(request):
 def insert_package(request):
     try:
         validate_method(request, "POST")
+
         with transaction.atomic():
             json_data = json.loads(request.body)
-            user_id = request.user.get("user_id")
+            user_id = request.user.get("user_id")  # User yang menambahkan package
 
+            # Validasi field wajib
             required_fields = ["package_name", "duration", "price", "description", "features"]
             for field in required_fields:
                 if field not in json_data:
@@ -391,7 +421,7 @@ def insert_package(request):
                         message=f"Field '{field}' wajib diisi",
                         messagetype="E"
                     )
-            
+
             now = timezone.now()
 
             data_to_insert = {
@@ -403,7 +433,7 @@ def insert_package(request):
                 "update_at": now,
             }
 
-            # Insert package, ambil package_id
+            # Insert ke tbl_packages, ambil package_id yg di-generate
             package_id = insert_get_id_data(
                 table_name="tbl_packages",
                 data=data_to_insert,
@@ -413,18 +443,14 @@ def insert_package(request):
             # Insert fitur ke tbl_package_features
             features = json_data.get("features", [])
             for feature_id in features:
-                # Ambil feature_name berdasarkan feature_id
+                # Ambil nama fitur (opsional, jika hanya butuh ID saja, langkah ini bisa dilewati)
                 feature_data = get_data(
                     table_name="master_features",
                     filters={"feature_id": feature_id}
                 )
-                
                 if not feature_data:
                     raise Exception(f"Feature dengan ID {feature_id} tidak ditemukan")
 
-                feature_name = feature_data[0]["feature_name"]
-
-                # Insert ke tbl_package_features
                 insert_data(
                     table_name="tbl_package_features",
                     data={
@@ -434,21 +460,37 @@ def insert_package(request):
                     }
                 )
 
-            return Response.ok(data={"package_id": package_id}, message="Paket dan fitur berhasil ditambahkan", messagetype="S")
+            # Insert notifikasi ke admin (contoh)
+            insert_notification(
+                user_id=user_id,
+                target_role='super_admin',
+                notif_type='package_created',
+                title='Paket Baru Ditambahkan',
+                message=f"Paket '{json_data['package_name']}' berhasil ditambahkan dengan ID {package_id}.",
+                data=json.dumps({"package_id": package_id})
+            )
+
+            return Response.ok(
+                data={"package_id": package_id},
+                message="Paket dan fitur berhasil ditambahkan",
+                messagetype="S"
+            )
+
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
-
+    
 @jwt_required
 @csrf_exempt
 def update_package(request, package_id):
     try:
         validate_method(request, "PUT")
-        with transaction.atomic():
-            # Ambil data dari request body
-            json_data = json.loads(request.body)
 
-            # Validasi data
+        with transaction.atomic():
+            json_data = json.loads(request.body)
+            user_id = request.user.get("user_id")  # user yang update
+
+            # Validasi field wajib
             required_fields = ["package_name", "duration", "price", "description", "features"]
             for field in required_fields:
                 if field not in json_data:
@@ -458,7 +500,7 @@ def update_package(request, package_id):
                         messagetype="E"
                     )
 
-            # Cek apakah package_id yang diberikan ada dalam database
+            # Pastikan package ada
             existing_package = get_data(
                 table_name="tbl_packages",
                 filters={"package_id": package_id}
@@ -470,47 +512,38 @@ def update_package(request, package_id):
                     messagetype="E"
                 )
 
-            # Format tanggal (update)
-            now = datetime.datetime.now()
+            now = timezone.now()
 
-            # Data yang akan di-update untuk paket
-            data_to_update = {
-                "package_name": json_data["package_name"],
-                "duration": json_data["duration"],
-                "price": json_data["price"],
-                "description": json_data["description"],
-                "update_at": now
-            }
-
-            # Update data di tabel tbl_packages
+            # Update tbl_packages
             update_data(
                 table_name="tbl_packages",
-                data=data_to_update,
+                data={
+                    "package_name": json_data["package_name"],
+                    "duration": json_data["duration"],
+                    "price": json_data["price"],
+                    "description": json_data["description"],
+                    "update_at": now
+                },
                 filters={"package_id": package_id}
             )
 
-            # Mengupdate fitur terkait (tbl_package_features)
-            current_features = json_data["features"]  # Fitur baru yang akan ditambahkan
-            # Menghapus fitur yang lama
+            # Hapus fitur lama
             delete_data(
                 table_name="tbl_package_features",
                 filters={"package_id": package_id}
             )
 
-            # Insert fitur baru ke tbl_package_features
-            for feature_id in current_features:
-                # Ambil feature_name berdasarkan feature_id
+            # Insert fitur baru
+            features = json_data["features"]
+            for feature_id in features:
+                # Validasi feature_id
                 feature_data = get_data(
                     table_name="master_features",
                     filters={"feature_id": feature_id}
                 )
-                
                 if not feature_data:
                     raise Exception(f"Feature dengan ID {feature_id} tidak ditemukan")
 
-                feature_name = feature_data[0]["feature_name"]
-
-                # Insert ke tbl_package_features
                 insert_data(
                     table_name="tbl_package_features",
                     data={
@@ -519,6 +552,16 @@ def update_package(request, package_id):
                         "created_at": now
                     }
                 )
+
+            # Tambahkan notifikasi
+            insert_notification(
+                user_id=user_id,
+                target_role='super_admin',
+                notif_type='package_updated',
+                title='Paket Diperbarui',
+                message=f"Paket '{json_data['package_name']}' (ID: {package_id}) berhasil diperbarui.",
+                data=json.dumps({"package_id": package_id})
+            )
 
             return Response.ok(
                 message=f"Paket dengan ID {package_id} berhasil diperbarui",
@@ -533,20 +576,51 @@ def update_package(request, package_id):
 @csrf_exempt
 def delete_package(request, package_id):
     try:
+        user_id = request.user.get("user_id")  # user yang menghapus
+
         with transaction.atomic():
-            # Hapus data terkait di tbl_package_features
+            # Pastikan paket ada
+            existing_package = get_data(
+                table_name="tbl_packages",
+                filters={"package_id": package_id}
+            )
+            if not existing_package:
+                return Response.badRequest(
+                    request,
+                    message=f"Paket dengan ID {package_id} tidak ditemukan",
+                    messagetype="E"
+                )
+
+            package_name = existing_package[0].get("package_name", "-")
+
+            # Hapus fitur terkait
             delete_data(
                 table_name="tbl_package_features",
                 filters={"package_id": package_id}
             )
-            
+
             # Hapus data di tbl_packages
             delete_data(
                 table_name="tbl_packages",
                 filters={"package_id": package_id}
             )
 
-            return Response.ok(data=package_id, message=f"Delete data dengan ID {package_id} Berhasil", messagetype="S")
+            # Tambahkan notifikasi ke admin (atau role lain)
+            insert_notification(
+                user_id=user_id,
+                target_role='super_admin',
+                notif_type='package_deleted',
+                title='Paket Dihapus',
+                message=f"Paket '{package_name}' (ID: {package_id}) telah dihapus.",
+                data=json.dumps({"package_id": package_id})
+            )
+
+            return Response.ok(
+                data=package_id,
+                message=f"Delete data dengan ID {package_id} berhasil",
+                messagetype="S"
+            )
+
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
