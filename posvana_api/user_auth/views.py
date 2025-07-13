@@ -12,6 +12,7 @@ from common.transaction_helper import *
 from posvana_api.utils.jwt_helper import *
 from posvana_api.utils.email_template import render_email_template
 from django.core.mail import EmailMessage
+from posvana_api.utils.notification_helper import insert_notification
 
 @csrf_exempt
 def register_store_owner(request):
@@ -112,6 +113,15 @@ def register_store_owner(request):
                     'store_owner',
                     store_id
                 ])
+                
+        insert_notification(
+            user_id=None,   # jika notif untuk role saja, user_id=None
+            target_role='super_admin',
+            notif_type='store_submission',
+            title='Pengajuan Toko Baru',
+            message=f"Toko '{data['store_name']}' diajukan oleh {data['name_owner']}.",
+            data=json.dumps({"store_id": store_id, "submission_code": generated_submission_code})
+        )
 
         return Response.ok(message="Store owner registered successfully", messagetype='S')
 

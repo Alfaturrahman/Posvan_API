@@ -713,32 +713,45 @@ def dashboard_data_store(request):
 def get_notifications(request):
     try:
         user = request.user
+        if not user:
+            return Response.badRequest(request, message="User tidak ditemukan", messagetype="E")
+
         user_id = user.get("user_id")
         role = user.get("role_name")
-        print("user", role)
+        print("user role:", role)
 
         search = request.GET.get("search")
         search_param = f"%{search}%" if search else None
 
-        # Siapkan query SQL
-        base_query = """
-            SELECT *
-            FROM public.notifications
-            WHERE (user_id = %s OR target_role = %s)
-        """
+        params = []
+
+        # Super admin: ambil semua notifikasi
+        if role == "SuperAdmin":
+            base_query = "SELECT * FROM public.notifications"
+        else:
+            base_query = """
+                SELECT *
+                FROM public.notifications
+                WHERE
+            """
+            if user_id:
+                base_query += "(user_id = %s OR (user_id IS NULL AND target_role = %s))"
+                params.extend([user_id, role])
+            else:
+                base_query += "(user_id IS NULL AND target_role = %s)"
+                params.append(role)
 
         # Tambah filter search jika ada
-        params = [user_id, role]
         if search_param:
-            base_query += """
-                AND (title ILIKE %s OR message ILIKE %s)
-            """
+            if "WHERE" in base_query:
+                base_query += " AND (title ILIKE %s OR message ILIKE %s)"
+            else:
+                base_query += " WHERE (title ILIKE %s OR message ILIKE %s)"
             params.extend([search_param, search_param])
 
         # Order by created_at desc
         base_query += " ORDER BY created_at DESC"
 
-        # Jalankan query
         notifications = execute_query(base_query, params=tuple(params))
 
         return Response.ok(
