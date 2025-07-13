@@ -634,84 +634,42 @@ def dashboard_data_store(request):
     
 
 # NOTIFIKASI
-
 @jwt_required
 @csrf_exempt
 def get_notifications(request):
     try:
         user = request.user
         user_id = user.get("user_id")
-        role = user.get("role")  # 'store_owner', 'customer', 'super_admin'
+        role = user.get("role_name")
+        print("user", role)
 
         search = request.GET.get("search")
+        search_param = f"%{search}%" if search else None
 
-        # Ambil notifikasi berdasarkan user_id
-        notif_by_user = get_data(
-            table_name="notifications",
-            filters={"user_id": user_id},
-            search=search,
-            search_columns=["title", "message"]
-        )
+        # Siapkan query SQL
+        base_query = """
+            SELECT *
+            FROM public.notifications
+            WHERE (user_id = %s OR target_role = %s)
+        """
 
-        # Ambil notifikasi berdasarkan role
-        notif_by_role = get_data(
-            table_name="notifications",
-            filters={"target_role": role},
-            search=search,
-            search_columns=["title", "message"]
-        )
+        # Tambah filter search jika ada
+        params = [user_id, role]
+        if search_param:
+            base_query += """
+                AND (title ILIKE %s OR message ILIKE %s)
+            """
+            params.extend([search_param, search_param])
 
-        # Gabungkan dan hapus duplikat jika perlu
-        combined_notifications = notif_by_user + [
-            n for n in notif_by_role if n not in notif_by_user
-        ]
+        # Order by created_at desc
+        base_query += " ORDER BY created_at DESC"
 
-        # Sort berdasarkan waktu terbaru
-        sorted_notifications = sorted(combined_notifications, key=lambda x: x["created_at"], reverse=True)
+        # Jalankan query
+        notifications = execute_query(base_query, params=tuple(params))
 
         return Response.ok(
-            data=sorted_notifications,
+            data=notifications,
             message="Notifikasi berhasil diambil",
-            messagetype="S"
-        )
-
-    except Exception as e:
-        log_exception(request, e)
-        return Response.badRequest(request, message=str(e), messagetype="E")
-
-@jwt_required
-@csrf_exempt
-def insert_notification(request):
-    try:
-        validate_method(request, "POST")
-        json_data = json.loads(request.body)
-
-        required_fields = ["type", "title"]
-        for field in required_fields:
-            if field not in json_data:
-                return Response.badRequest(
-                    request,
-                    message=f"Field '{field}' wajib diisi",
-                    messagetype="E"
-                )
-
-        now = timezone.now()
-
-        data_to_insert = {
-            "user_id": json_data.get("user_id"),
-            "target_role": json_data.get("target_role"),
-            "type": json_data["type"],
-            "title": json_data["title"],
-            "message": json_data.get("message"),
-            "data": json_data.get("data"),
-            "created_at": now,
-            "is_read": False,
-        }
-
-        insert_data("notifications", data_to_insert)
-
-        return Response.ok(
-            message="Notifikasi berhasil ditambahkan",
             messagetype="S"
         )
 

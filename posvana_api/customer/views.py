@@ -12,7 +12,7 @@ from common.transaction_helper import *
 from posvana_api.utils.jwt_helper import jwt_required
 import re
 from django.http.multipartparser import MultiPartParser
-
+from posvana_api.utils.notification_helper import insert_notification
 
 #PROFILE CUSTOMER
 
@@ -83,7 +83,6 @@ def update_profile_cust(request):
 
             # Jika ada avatar, simpan file avatar
             if avatar:
-                # Misalnya, kamu ingin menyimpannya ke direktori tertentu
                 avatar_path = save_avatar(avatar)  # Ganti dengan fungsi penyimpanan file yang sesuai
                 # Simpan path avatar ke tabel customer jika perlu
                 with connection.cursor() as cursor:
@@ -92,6 +91,15 @@ def update_profile_cust(request):
                         SET avatar_path = %s
                         WHERE customer_id = %s
                     """, [avatar_path, customer_id])
+
+            # --- Insert Notification setelah update berhasil ---
+            insert_notification(
+                user_id=customer_id,
+                notif_type='info',
+                title='Profil Berhasil Diperbarui',
+                message='Profil kamu telah berhasil diperbarui.',
+                data={"customer_id": customer_id}
+            )
 
         return Response.ok(message="Profile updated successfully", messagetype="S")
 
@@ -181,6 +189,9 @@ def insert_order(request):
         validate_method(request, "POST")
         with transaction.atomic():
             store_id = request.GET.get("store_id")
+            user = request.user
+            user_id = user.get("user_id")
+            role = user.get("role")  # 'store_owner', 'customer', 'super_admin'
 
             json_data = json.loads(request.body)
             
@@ -283,6 +294,26 @@ def insert_order(request):
                     table_name="tbl_order_items",
                     data=item_data
                 )
+
+            # Notifikasi ke customer
+            insert_notification(
+                user_id=user_id,
+                target_role='customer',
+                notif_type='order',
+                title='Pesanan Berhasil Dibuat',
+                message=f"Pesanan kamu dengan kode {order_code} berhasil dibuat.",
+                data=json.dumps({"order_id": order_id, "order_code": order_code, "store_id": store_id})
+            )
+
+            # Notifikasi ke store_owner
+            insert_notification(
+                user_id=store_id,
+                target_role='store_owner',
+                notif_type='order',
+                title='Pesanan Baru',
+                message=f"Ada pesanan baru dengan kode {order_code} yang masuk.",
+                data=json.dumps({"order_id": order_id, "order_code": order_code, "store_id": store_id})
+            )
 
         return Response.ok(data={"order_id": order_id, "order_code": order_code}, message="Pesanan berhasil ditambahkan", messagetype="S")
 

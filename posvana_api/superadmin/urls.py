@@ -20,6 +20,5 @@ urlpatterns = [
 
     # Notifikasi
     path('get_notifications/', views.get_notifications, name='get_notifications'),
-    path('insert_notification/', views.insert_notification, name='insert_notification'),
     path('mark_notification_read/<int:notif_id>', views.mark_notification_read, name='mark_notification_read'),
 ]
