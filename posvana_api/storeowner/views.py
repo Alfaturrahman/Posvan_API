@@ -15,6 +15,7 @@ import re
 from django.http.multipartparser import MultiPartParser
 from django.utils import timezone
 from django.utils.timezone import localtime
+from posvana_api.utils.notification_helper import insert_notification
 
 #Dashboard (STORE OWNER)
 
@@ -107,6 +108,7 @@ def update_order_status(request, order_id):
         validate_method(request, "PUT")
         json_data = json.loads(request.body)
         new_status = json_data.get("order_status")
+        user_id = request.user.get("user_id")
 
         if not new_status:
             return Response.badRequest(request, message="Field 'order_status' wajib diisi", messagetype="E")
@@ -119,6 +121,15 @@ def update_order_status(request, order_id):
 
         if updated == 0:
             return Response.badRequest(request, message="Order tidak ditemukan atau tidak ada perubahan", messagetype="E")
+        # Setelah update status order berhasil
+        insert_notification(
+            user_id=user_id,
+            target_role='store_owner',
+            notif_type='order_status_changed',
+            title='Status Pesanan Berubah',
+            message=f"Status pesanan ID {order_id} kini menjadi '{new_status}'.",
+            data=json.dumps({"order_id": order_id, "new_status": new_status})
+        )
 
         return Response.ok(message="Status order berhasil diperbarui", messagetype="S")
 
@@ -240,6 +251,15 @@ def insert_order(request):
                     data=item_data
                 )
 
+                insert_notification(
+                    user_id=store_id,
+                    target_role='store_owner',
+                    notif_type='order_created',  # sesuaikan jenisnya
+                    title='Pesanan Baru Ditambahkan',
+                    message=f"Pesanan baru berhasil ditambahkan dengan ID {order_id}.",
+                    data=json.dumps({"order_id": order_id})
+                )
+
         return Response.ok(data={"order_id": order_id, "order_code": order_code}, message="Pesanan berhasil ditambahkan", messagetype="S")
 
     except Exception as e:
@@ -253,6 +273,8 @@ def update_order(request):
         validate_method(request, "PUT")
         with transaction.atomic():
             order_id = request.GET.get("order_id")
+            user_id = request.user.get("user_id")  
+
             if not order_id:
                 return Response.badRequest(request, message="order_id harus disertakan", messagetype="E")
 
@@ -365,6 +387,16 @@ def update_order(request):
                 insert_data(
                     table_name="tbl_order_items",
                     data=item_data
+                )
+
+                # Setelah update order berhasil
+                insert_notification(
+                    user_id=user_id,
+                    target_role='store_owner',
+                    notif_type='order_updated',
+                    title='Pesanan Diperbarui',
+                    message=f"Pesanan dengan ID {order_id} telah diperbarui.",
+                    data=json.dumps({"order_id": order_id})
                 )
 
         return Response.ok(data={"order_id": order_id}, message="Pesanan berhasil diupdate", messagetype="S")
@@ -489,7 +521,8 @@ def insert_produk(request):
         
         if request.method != 'POST' or not request.FILES:
             return Response.badRequest(request, message="Invalid request. Please send as multipart/form-data.", messagetype="E")
-
+        
+        user_id = request.user.get("user_id")
         product_name = request.POST.get("product_name")
         store_id = request.POST.get("store_id")
         stock = request.POST.get("stock")
@@ -561,6 +594,16 @@ def insert_produk(request):
             column_id="product_id"
         )
 
+        # Setelah insert produk berhasil
+        insert_notification(
+            user_id=user_id,
+            target_role='store_owner',
+            notif_type='product_created',
+            title='Produk Baru Ditambahkan',
+            message=f"Produk baru '{product_name}' berhasil ditambahkan dengan ID {product_id}.",
+            data=json.dumps({"product_id": product_id})
+        )
+
         return Response.ok(
             data={"product_id": product_id, "product_code": product_code, "product_picture_url": file_url},
             message="Produk berhasil ditambahkan",
@@ -589,6 +632,7 @@ def update_produk(request, product_id):
         parser = MultiPartParser(request.META, request, request.upload_handlers)
         parsed_data, parsed_files = parser.parse()
 
+        user_id = request.user.get("user_id")
         product_code = parsed_data.get("product_code")
         product_name = parsed_data.get("product_name")
         store_id = parsed_data.get("store_id")
@@ -652,13 +696,22 @@ def update_produk(request, product_id):
             "is_active": is_active
         }
 
-        print("DATA TO UPDATE:", data_to_update)
 
         # Melakukan update pada database
         update_data(
             table_name="tbl_products",
             data=data_to_update,
             filters={"product_id": product_id}
+        )
+
+        # Setelah update produk berhasil
+        insert_notification(
+            user_id=user_id,
+            target_role='store_owner',
+            notif_type='product_updated',
+            title='Produk Diperbarui',
+            message=f"Produk '{product_name}' dengan ID {product_id} telah diperbarui.",
+            data=json.dumps({"product_id": product_id})
         )
 
         return Response.ok(
@@ -795,10 +848,20 @@ def update_stock(request):
 def delete_produk(request, product_id):
     try:
         with transaction.atomic():
+            user_id = request.user.get("user_id")
             
             delete_data(
                 table_name="tbl_products",
                 filters={"product_id" : product_id }
+            )
+            # Setelah delete produk berhasil
+            insert_notification(
+                user_id=user_id,
+                target_role='store_owner',
+                notif_type='product_deleted',
+                title='Produk Dihapus',
+                message=f"Produk dengan ID {product_id} telah dihapus.",
+                data=json.dumps({"product_id": product_id})
             )
 
             return Response.ok(data=product_id, message=f"Delete data dengan ID {product_id} Berhasil", messagetype="S")
@@ -1020,7 +1083,6 @@ def update_profile(request, store_id):
     except Exception as e:
         return Response.badRequest(request, message=str(e), messagetype="E")
     
-
 @jwt_required
 @csrf_exempt
 def update_open_status(request):
@@ -1137,6 +1199,7 @@ def insert_stok_basah(request):
         data = {}
         proof_of_payment = None
         proof_of_payment_base64 = None
+        user_id = request.user.get("user_id")
 
         if request.content_type.startswith('application/json'):
             body = json.loads(request.body)
@@ -1213,6 +1276,16 @@ def insert_stok_basah(request):
                     "created_at": now
                 }
             )
+        
+        # Setelah insert stok basah berhasil
+        insert_notification(
+            user_id=user_id,
+            target_role='store_owner',
+            notif_type='wet_stock_created',
+            title='Stok Basah Baru Ditambahkan',
+            message=f"Stok basah baru berhasil ditambahkan dengan ID {stock_entry_id}.",
+            data=json.dumps({"stock_entry_id": stock_entry_id})
+        )
 
         return Response.ok(
             data={"stock_entry_id": stock_entry_id, "proof_of_payment_url": proof_of_payment_url},
@@ -1272,6 +1345,7 @@ def update_stok_basah(request):
     try:
         validate_method(request, "POST")
         now = datetime.datetime.now()
+        user_id = request.user.get("user_id")
 
         data = {}
         proof_of_payment = None
@@ -1363,6 +1437,15 @@ def update_stok_basah(request):
                     "created_at": now
                 }
             )
+        # Setelah update stok basah berhasil
+        insert_notification(
+            user_id=user_id,
+            target_role='store_owner',
+            notif_type='wet_stock_updated',
+            title='Stok Basah Diperbarui',
+            message=f"Stok basah dengan ID { data['stock_entry_id']} telah diperbarui.",
+            data=json.dumps({"stock_entry_id":  data['stock_entry_id']})
+        )
 
         return Response.ok(
             data={"stock_entry_id": data['stock_entry_id'], "proof_of_payment_url": proof_of_payment_url},
@@ -1378,6 +1461,8 @@ def update_stok_basah(request):
 @csrf_exempt
 def delete_stok_basah(request, stock_entry_id):
     try:
+        
+        user_id = request.user.get("user_id")
 
         if not stock_entry_id:
             return Response.badRequest(request, message="stock_entry_id harus disertakan", messagetype="E")
@@ -1392,6 +1477,15 @@ def delete_stok_basah(request, stock_entry_id):
         delete_data(
             table_name="tbl_stock_entry",
             filters={"stock_entry_id": stock_entry_id}
+        )
+        # Setelah delete stok basah berhasil
+        insert_notification(
+            user_id=user_id,
+            target_role='store_owner',
+            notif_type='wet_stock_deleted',
+            title='Stok Basah Dihapus',
+            message=f"Stok basah dengan ID {stock_entry_id} telah dihapus.",
+            data=json.dumps({"stock_entry_id": stock_entry_id})
         )
 
         return Response.ok(message="Stok basah berhasil dihapus", messagetype="S")
@@ -1431,6 +1525,7 @@ def insert_pengeluaran(request):
     try:
         validate_method(request, "POST")
         now = datetime.datetime.now()
+        user_id = request.user.get("user_id")
 
         data = {}
         proof_of_expenses = None
@@ -1493,6 +1588,16 @@ def insert_pengeluaran(request):
             column_id="other_expenses_id"
         )
 
+        # Setelah insert pengeluaran berhasil
+        insert_notification(
+            user_id=user_id,
+            target_role='store_owner',
+            notif_type='expense_created',
+            title='Pengeluaran Baru Ditambahkan',
+            message=f"Pengeluaran baru berhasil dicatat dengan ID {other_expenses_id}.",
+            data=json.dumps({"other_expenses_id": other_expenses_id})
+        )
+
         return Response.ok(
             data={"other_expenses_id": other_expenses_id, "proof_of_expenses_url": proof_of_expenses_url},
             message="Pengeluaran berhasil ditambahkan",
@@ -1509,6 +1614,7 @@ def update_pengeluaran(request):
     try:
         validate_method(request, "POST")
         now = datetime.datetime.now()
+        user_id = request.user.get("user_id")
 
         data = {}
         proof_of_expenses = None
@@ -1575,6 +1681,15 @@ def update_pengeluaran(request):
                 "created_at": now
             }
         )
+        # Setelah update pengeluaran berhasil
+        insert_notification(
+            user_id=user_id,
+            target_role='store_owner',
+            notif_type='expense_updated',
+            title='Pengeluaran Diperbarui',
+            message=f"Pengeluaran dengan ID {data['other_expenses_id']} telah diperbarui.",
+            data=json.dumps({"other_expenses_id": data['other_expenses_id']})
+        )
 
         return Response.ok(
             data={"other_expenses_id": data['other_expenses_id'], "proof_of_expenses_url": proof_of_expenses_url},
@@ -1593,11 +1708,22 @@ def delete_pengeluaran(request,other_expenses_id):
         
         if not other_expenses_id:
             return Response.badRequest(request, message="other_expenses_id harus disertakan", messagetype="E")
+        user_id = request.user.get("user_id")
 
         # Hapus data
         delete_data(
             table_name="tbl_other_expenses",
             filters={"other_expenses_id": other_expenses_id}
+        )
+
+        # Setelah delete pengeluaran berhasil
+        insert_notification(
+            user_id=user_id,
+            target_role='store_owner',
+            notif_type='expense_deleted',
+            title='Pengeluaran Dihapus',
+            message=f"Pengeluaran dengan ID {other_expenses_id} telah dihapus.",
+            data=json.dumps({"other_expenses_id": other_expenses_id})
         )
 
         return Response.ok(message="Pengeluaran berhasil dihapus", messagetype="S")

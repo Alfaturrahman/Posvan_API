@@ -410,7 +410,7 @@ def insert_package(request):
 
         with transaction.atomic():
             json_data = json.loads(request.body)
-            user_id = request.user.get("user_id")  # User yang menambahkan package
+            user_id = request.user.get("user_id")
 
             # Validasi field wajib
             required_fields = ["package_name", "duration", "price", "description", "features"]
