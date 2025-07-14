@@ -46,4 +46,9 @@ urlpatterns = [
     path('laporan_uang_keluar/', views.laporan_uang_keluar, name='laporan_uang_keluar'),
     path('detail_pengeluaran/', views.detail_pengeluaran, name='detail_pengeluaran'),
 
+    # tripay
+    path('tripay_callback/', views.tripay_callback, name='tripay_callback'),
+    path('create_tripay_transaction/', views.create_tripay_transaction, name='create_tripay_transaction'),
+    path('check_payment_status/', views.check_payment_status, name='check_payment_status'),
+
 ]

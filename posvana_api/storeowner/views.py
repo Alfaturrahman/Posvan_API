@@ -16,6 +16,11 @@ from django.http.multipartparser import MultiPartParser
 from django.utils import timezone
 from django.utils.timezone import localtime
 from posvana_api.utils.notification_helper import insert_notification
+from posvana_api.utils.tripay_service import *
+import time
+from posvana_api.utils.tripay_service import create_transaction, create_signature
+
+
 
 #Dashboard (STORE OWNER)
 
@@ -137,7 +142,6 @@ def update_order_status(request, order_id):
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
-
 @jwt_required
 @csrf_exempt
 def insert_order(request):
@@ -145,36 +149,38 @@ def insert_order(request):
         validate_method(request, "POST")
         with transaction.atomic():
             store_id = request.GET.get("store_id")
-
             json_data = json.loads(request.body)
-            
-            # Cek field wajib di orders
-            required_fields = ["date", "total_amount", "order_status", "payment_method", "order_items"]
+
+            # ✅ Cek field wajib
+            required_fields = ["date", "total_amount", "payment_method", "order_items"]
             for field in required_fields:
                 if field not in json_data:
                     return Response.badRequest(request, message=f"Field '{field}' wajib diisi", messagetype="E")
-            
-            now = localtime(timezone.now())  # ini akan beri waktu sesuai TIME_ZONE di settings.py
 
-            # Generate order code
+            order_items = json_data["order_items"]
+            if not order_items:
+                return Response.badRequest(request, message="Order harus punya minimal 1 produk", messagetype="E")
+
+            now = localtime(timezone.now())
             order_code = generate_order_code()
 
-            # Isi field opsional kalau tidak ada
+            # ✅ Default status 'PENDING' → nanti diupdate saat Tripay callback
+            order_status = "PENDING"
+
+            # ✅ Field opsional
             customer_name = json_data.get("customer_name", "")
             remarks = json_data.get("remarks", "")
-            pickup_date = json_data.get("pickup_date", None)
-            pickup_time = json_data.get("pickup_time", None)
-            role_id = json_data.get("role_id", None)
-            reference_id = json_data.get("reference_id", None)
+            pickup_date = json_data.get("pickup_date")
+            pickup_time = json_data.get("pickup_time")
+            role_id = json_data.get("role_id")
+            reference_id = json_data.get("reference_id")
             no_hp = json_data.get("no_hp", "")
             delivery_address = json_data.get("delivery_address", "")
-            
-            # Konversi boolean flag
             is_pre_order = json_data.get("is_pre_order", False)
             is_delivered = json_data.get("is_delivered", False)
             is_dine_in = json_data.get("is_dine_in", False)
 
-            # Data untuk tbl_orders
+            # ✅ Insert tbl_orders
             order_data = {
                 "store_id": store_id,
                 "customer_name": customer_name,
@@ -192,80 +198,236 @@ def insert_order(request):
                 "no_hp": no_hp,
                 "delivery_address": delivery_address,
                 "order_code": order_code,
-                "order_status": json_data["order_status"],
+                "order_status": order_status,
                 "payment_method": json_data["payment_method"]
             }
 
-            # Insert tbl_orders
             order_id = insert_get_id_data(
                 table_name="tbl_orders",
                 data=order_data,
                 column_id="order_id"
             )
 
-            # Insert ke tbl_order_items
-            order_items = json_data["order_items"]
-            if not order_items:
-                return Response.badRequest(request, message="Order harus punya minimal 1 produk", messagetype="E")
-
+            # ✅ Insert tbl_order_items & cek stok
             for item in order_items:
                 item_required_fields = ["product_id", "selling_price", "product_type", "item"]
                 for f in item_required_fields:
                     if f not in item:
                         return Response.badRequest(request, message=f"Field '{f}' di order_items wajib diisi", messagetype="E")
 
-                # Periksa stok produk
                 product_id = item["product_id"]
-                quantity = item["item"]  # Anggap 'item' adalah jumlah pesanan
-                stok_produk = get_data(
-                    table_name="tbl_products",
-                    filters={"product_id": product_id}
-                )
+                quantity = item["item"]
+
+                stok_produk = get_data("tbl_products", filters={"product_id": product_id})
                 if not stok_produk:
                     return Response.badRequest(request, message=f"Produk dengan id {product_id} tidak ditemukan", messagetype="E")
 
                 if stok_produk[0]['stock'] < quantity:
                     return Response.badRequest(request, message=f"Stok produk {stok_produk[0]['product_name']} tidak mencukupi", messagetype="E")
 
-
-                # Kurangi stok produk
+                # Kurangi stok
                 new_stock = stok_produk[0]['stock'] - quantity
-                update_data(
-                    table_name="tbl_products",
-                    data={"stock": new_stock},
-                    filters={"product_id": product_id}
-                )
+                update_data("tbl_products", {"stock": new_stock}, {"product_id": product_id})
 
-                # Insert ke tbl_order_items
-                item_data = {
+                insert_data("tbl_order_items", {
                     "order_id": order_id,
-                    "product_id": item["product_id"],
+                    "product_id": product_id,
                     "selling_price": item["selling_price"],
                     "product_type": item["product_type"],
-                    "item": item["item"],
+                    "item": quantity,
                     "created_at": now
-                }
+                })
 
-                insert_data(
-                    table_name="tbl_order_items",
-                    data=item_data
-                )
+            # ✅ Insert notifikasi
+            insert_notification(
+                user_id=store_id,
+                target_role='store_owner',
+                notif_type='order_created',
+                title='Pesanan Baru Ditambahkan',
+                message=f"Pesanan baru berhasil ditambahkan dengan ID {order_id}.",
+                data=json.dumps({"order_id": order_id})
+            )
 
-                insert_notification(
-                    user_id=store_id,
-                    target_role='store_owner',
-                    notif_type='order_created',  # sesuaikan jenisnya
-                    title='Pesanan Baru Ditambahkan',
-                    message=f"Pesanan baru berhasil ditambahkan dengan ID {order_id}.",
-                    data=json.dumps({"order_id": order_id})
-                )
-
-        return Response.ok(data={"order_id": order_id, "order_code": order_code}, message="Pesanan berhasil ditambahkan", messagetype="S")
+        # ✅ Return ke frontend supaya frontend bisa langsung panggil endpoint create_tripay_transaction
+        return Response.ok(
+            data={
+                "order_id": order_id,
+                "order_code": order_code,
+                "total_amount": json_data["total_amount"]
+            },
+            message="Pesanan berhasil dibuat. Silakan lanjut ke pembayaran.",
+            messagetype="S"
+        )
 
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
-    
+
+@jwt_required
+@csrf_exempt
+def create_tripay_transaction(request):
+    try:
+        validate_method(request, "POST")
+        json_data = json.loads(request.body)
+
+        order_id = json_data.get("order_id")
+        payment_method = json_data.get("payment_method")
+
+        if not order_id or not payment_method:
+            return Response.badRequest(request, message="order_id & payment_method wajib diisi", messagetype="E")
+
+        # Ambil data order
+        order = get_data("tbl_orders", filters={"order_id": order_id})
+        if not order:
+            return Response.badRequest(request, message="Order tidak ditemukan", messagetype="E")
+        order = order[0]
+
+        merchant_ref = order['order_code']
+        amount = int(order['total_amount'])
+        customer_name = order['customer_name'] or "Customer"
+        customer_email = "customer@email.com"
+        customer_phone = order['no_hp'] or "08123456789"
+        expired_time = int(time.time()) + 86400
+
+        payload = {
+            "method": payment_method,
+            "merchant_ref": merchant_ref,
+            "amount": amount,
+            "customer_name": customer_name,
+            "customer_email": customer_email,
+            "customer_phone": customer_phone,
+            "order_items": [
+                {
+                    "name": f"Pesanan #{order_id}",
+                    "price": amount,
+                    "quantity": 1
+                }
+            ],
+            "return_url": "https://yourwebsite.com/payment/success",
+            "callback_url": "https://5dbb88ef35ab.ngrok-free.app/api/storeowner/tripay_callback/",
+            "expired_time": expired_time,
+            "signature": create_signature(merchant_ref, amount)
+        }
+
+        # Buat transaksi ke Tripay
+        tripay_response = create_transaction(payload)
+        reference = tripay_response['reference']
+
+        # Panggil detail transaksi supaya dapat qr_url
+        tripay_detail = get_transaction_detail(reference)
+        qr_url = tripay_detail.get('qr_url')
+
+        # Simpan reference ke DB
+        update_data(
+            table_name="tbl_orders",
+            data={"tripay_reference": reference},
+            filters={"order_id": order_id}
+        )
+
+        return Response.ok(
+            data={
+                "reference": reference,
+                "payment_url": tripay_response['checkout_url'],
+                "qr_url": qr_url,
+                "amount": tripay_response['amount'],
+                "expired_at": tripay_response['expired_time'],
+                "payment_method": tripay_response['payment_name']
+            },
+            message="Transaksi pembayaran berhasil dibuat",
+            messagetype="S"
+        )
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
+@csrf_exempt
+def tripay_callback(request):
+    try:
+        print("Tripay callback raw body:", request.body.decode())
+        json_data = json.loads(request.body)
+
+        reference = json_data.get("reference")
+        status = json_data.get("status")
+        amount = float(json_data.get("total_amount", 0))
+        paid_at = json_data.get("paid_at")
+        payment_method = json_data.get("payment_method")
+        callback_signature = request.headers.get("X-Callback-Signature")
+        raw_body = request.body
+
+        if not reference or not status or not callback_signature:
+            return JsonResponse({"success": False, "message": "Invalid data"}, status=400)
+
+        from posvana_api.utils.tripay_service import verify_callback_signature
+
+        if not verify_callback_signature(raw_body, callback_signature):
+            return JsonResponse({"success": False, "message": "Invalid signature"}, status=400)
+
+        order = get_data("tbl_orders", filters={"tripay_reference": reference})
+        if not order:
+            return JsonResponse({"success": False, "message": "Order not found"}, status=404)
+        order_id = order[0]['order_id']
+
+        paid_datetime = None
+        if paid_at:
+            try:
+                paid_datetime = timezone.datetime.fromtimestamp(int(paid_at))
+            except Exception:
+                paid_datetime = None
+
+        existing_payment = get_data("tbl_payments", filters={"tripay_reference": reference})
+        if existing_payment:
+            update_data(
+                "tbl_payments",
+                data={"status": status, "paid_at": paid_datetime, "raw_callback": json.dumps(json_data)},
+                filters={"tripay_reference": reference}
+            )
+        else:
+            insert_data(
+                "tbl_payments",
+                data={
+                    "order_id": order_id,
+                    "tripay_reference": reference,
+                    "amount": amount,
+                    "status": status,
+                    "payment_method": payment_method,
+                    "paid_at": paid_datetime,
+                    "raw_callback": json.dumps(json_data),
+                    "created_at": timezone.now()
+                }
+            )
+
+        new_status = "in_progress" if status == "PAID" else "pending"
+        update_data("tbl_orders", data={"order_status": new_status}, filters={"order_id": order_id})
+
+        return JsonResponse({"success": True}, status=200)
+
+    except Exception as e:
+        import traceback
+        print("Tripay callback error:", traceback.format_exc())
+        log_exception(request, e)
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+@csrf_exempt
+@jwt_required
+def check_payment_status(request):
+    try:
+        order_id = request.GET.get('order_id')
+        if not order_id:
+            return Response.badRequest(request, message="order_id wajib diisi", messagetype="E")
+        
+        order = get_data("tbl_orders", filters={"order_id": order_id})
+        if not order:
+            return Response.badRequest(request, message="Order tidak ditemukan", messagetype="E")
+        
+        order = order[0]
+        return Response.ok(
+            data={"status": order["order_status"]}, 
+            message="Berhasil ambil status order",
+            messagetype="S"
+        )
+    except Exception as e:
+        return Response.badRequest(request, message=str(e), messagetype="E")
+
 @jwt_required
 @csrf_exempt
 def update_order(request):
