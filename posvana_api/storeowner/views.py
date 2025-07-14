@@ -43,20 +43,27 @@ def dashboard(request):
                 """
                     SELECT * FROM summary_dashboard_monthly(%s, %s, %s);
                 """,
-                params=(store_id, year, month)
+                params=(store_id, month, year)
             )
             dashboard_yearly = execute_query(
                 """
-                    SELECT * FROM public.summary_dashboard_yearly(%s, %s);
+                    SELECT * FROM summary_dashboard_yearly(%s, %s);
                 """,
                 params=(store_id, year)
             )
+            # dashboard_daily = execute_query(
+            #     """
+            #         SELECT * FROM summary_dashboard_daily(%s, %s, %s, %s);
+            #     """,
+            #     params=(store_id, month, year, day)
+            # )
             dashboard_daily = execute_query(
                 """
                     SELECT * FROM summary_dashboard_daily(%s, %s, %s);
                 """,
-                params=(day, month, year)
+                params=(store_id, month, year)
             )
+
             dashboard_presentase = execute_query(
                 """
                     SELECT * 
