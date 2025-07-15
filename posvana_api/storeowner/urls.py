@@ -20,11 +20,14 @@ urlpatterns = [
     path('update_stock/', views.update_stock, name='update_stock'),
     path('update_produk/<int:product_id>/', views.update_produk, name='update_produk'),
     path('delete_produk/<int:product_id>/', views.delete_produk, name='delete_produk'),
+    path('check_product_stock/', views.check_product_stock, name='check_product_stock'),
     # Page Menu
+    path('daftar_produk/', views.daftar_produk, name='daftar_produk'),
     path('daftar_menu/', views.daftar_menu, name='daftar_menu'),
     # Page Riwayat Pesanan
     path('riwayat_pesanan/', views.riwayat_pesanan, name='riwayat_pesanan'),
     path('riwayat_detail_pesanan/', views.riwayat_detail_pesanan, name='riwayat_detail_pesanan'),
+    path('update_order_status_online/', views.update_order_status_online, name='update_order_status_online'),
     # Page Profile
     path('profile/<int:store_id>/', views.profile, name='profile'),
     path('update_profile/<int:store_id>/', views.update_profile, name='update_profile'),

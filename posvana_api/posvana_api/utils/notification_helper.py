@@ -1,5 +1,6 @@
 from django.utils import timezone
 from common.transaction_helper import insert_data
+import pytz
 
 def insert_notification(
     user_id=None,
@@ -25,8 +26,9 @@ def insert_notification(
 
     if not user_id and not target_role:
         raise ValueError("Harus diisi minimal 'user_id' atau 'target_role'")
-
-    now = timezone.now()
+    
+    jakarta_tz = pytz.timezone('Asia/Jakarta')
+    now = timezone.now().astimezone(jakarta_tz).replace(tzinfo=None)  # Buat jadi naive datetime
 
     data_to_insert = {
         "user_id": user_id,

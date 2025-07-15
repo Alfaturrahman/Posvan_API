@@ -171,8 +171,17 @@ def insert_order(request):
             now = localtime(timezone.now())
             order_code = generate_order_code()
 
-            # ✅ Default status 'PENDING' → nanti diupdate saat Tripay callback
-            order_status = "PENDING"
+            payment_method = json_data["payment_method"]
+            payment_method_lower = payment_method.lower()
+
+            valid_payment_methods = ["cash", "qris"]
+            if payment_method_lower not in valid_payment_methods:
+                return Response.badRequest(request, message="Payment method tidak valid", messagetype="E")
+
+            if payment_method_lower == "cash":
+                order_status = "in_progress"
+            else:
+                order_status = "PENDING"
 
             # ✅ Field opsional
             customer_name = json_data.get("customer_name", "")
@@ -434,6 +443,49 @@ def check_payment_status(request):
         )
     except Exception as e:
         return Response.badRequest(request, message=str(e), messagetype="E")
+    
+@csrf_exempt
+@jwt_required
+def check_product_stock(request):
+    try:
+        store_id = request.GET.get('store_id')
+        if not store_id:
+            return Response.badRequest(request, message="store_id wajib diisi", messagetype="E")
+
+        products = get_data("tbl_products", filters={"store_id": store_id})
+        for product in products:
+            stock = product['stock']
+            last_status = product.get('last_stock_status', 'normal')
+
+            if stock == 0 and last_status != 'empty':
+                insert_notification(
+                    user_id=store_id,
+                    target_role='store_owner',
+                    notif_type='stock_empty',
+                    title='Stok Produk Habis',
+                    message=f"Stok produk '{product['product_name']}' sudah habis.",
+                    data=json.dumps({"product_id": product["product_id"]})
+                )
+                update_data("tbl_products", filters={"product_id": product["product_id"]}, data={"last_stock_status": "empty"})
+
+            elif stock <= 10 and stock > 0 and last_status != 'low':
+                insert_notification(
+                    user_id=store_id,
+                    target_role='store_owner',
+                    notif_type='stock_low',
+                    title='Stok Produk Menipis',
+                    message=f"Stok produk '{product['product_name']}' tinggal {stock}.",
+                    data=json.dumps({"product_id": product["product_id"], "remaining_stock": stock})
+                )
+                update_data("tbl_products", filters={"product_id": product["product_id"]}, data={"last_stock_status": "low"})
+
+            elif stock > 10 and last_status != 'normal':
+                # update status balik ke normal, tidak perlu notif
+                update_data("tbl_products", filters={"product_id": product["product_id"]}, data={"last_stock_status": "normal"})
+
+        return Response.ok(message="Berhasil cek stok & kirim notifikasi", messagetype="S")
+    except Exception as e:
+        return Response.badRequest(request, message=str(e), messagetype="E")
 
 @jwt_required
 @csrf_exempt
@@ -673,6 +725,8 @@ def daftar_produk(request):
             if search:
                 query += " AND LOWER(product_name) LIKE %s"
                 params.append(f"%{search.lower()}%")
+            
+            query += " ORDER BY created_at ASC"
 
             daftar_produk = execute_query(query, params=tuple(params))
 
@@ -1075,7 +1129,7 @@ def daftar_menu(request):
 
             daftar_menu = execute_query(
                 """
-                    SELECT * FROM public.view_product_list 
+                    SELECT * FROM public.view_product_topfavorit 
                     WHERE store_id = %s AND is_active = true;
                 """,
                 params=(store_id,)
@@ -1175,6 +1229,70 @@ def riwayat_detail_pesanan(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+
+@jwt_required
+@csrf_exempt
+def update_order_status_online(request):
+    try:
+        if request.method != "PUT":
+            return Response.badRequest(
+                request, message="Invalid HTTP method, expected PUT", messagetype="E"
+            )
+
+        order_code = request.GET.get("order_code")
+        new_status = request.GET.get("new_status")
+        reason = request.GET.get("reason")  # opsional
+
+        if not order_code:
+            return Response.badRequest(
+                request, message="order_code is required", messagetype="E"
+            )
+
+        allowed_status = ["Pending", "in_progress", "Completed", "canceled"]
+        if not new_status:
+            return Response.badRequest(
+                request, message="new_status is required", messagetype="E"
+            )
+        if new_status not in allowed_status:
+            return Response.badRequest(
+                request,
+                message=f"Invalid new_status. Allowed: {', '.join(allowed_status)}",
+                messagetype="E"
+            )
+
+        if new_status == "canceled" and not reason:
+            return Response.badRequest(
+                request,
+                message="reason is required when rejecting an order",
+                messagetype="E"
+            )
+
+        now = datetime.datetime.now()
+
+        update_payload = {
+            "order_status": new_status,
+            "updated_at": now
+        }
+        if new_status == "canceled":
+            update_payload["remarks"] = reason  # gunakan kolom remarks
+
+        update_data(
+            table_name="tbl_orders",
+            data=update_payload,
+            filters={"order_code": order_code}
+        )
+
+        return Response.ok(
+            data={"order_code": order_code, "new_status": new_status},
+            message="Status pesanan berhasil diperbarui",
+            messagetype="S"
+        )
+
+    except Exception as e:
+        log_exception(request, e)
+        return Response.badRequest(
+            request, message=str(e), messagetype="E"
+        )
     
 @jwt_required
 @csrf_exempt
