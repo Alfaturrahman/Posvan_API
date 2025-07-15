@@ -67,11 +67,11 @@ def dashboard(request):
             dashboard_presentase = execute_query(
                 """
                     SELECT * 
-                    FROM summary_dashboard_persentase
+                    FROM summary_dashboard_persentase_harian
                     WHERE store_id = %s
-                    AND bulan = DATE %s;
+                    AND tanggal = DATE %s;
                 """,
-                params=(store_id, f"{year}-{month:02d}-01")
+                params=(store_id, f"{year}-{month:02d}-{day:02d}")
             )
 
             dashboard = {
@@ -172,16 +172,24 @@ def insert_order(request):
             order_code = generate_order_code()
 
             payment_method = json_data["payment_method"]
-            payment_method_lower = payment_method.lower()
 
-            valid_payment_methods = ["cash", "qris"]
-            if payment_method_lower not in valid_payment_methods:
+            # normalisasi: huruf kecil + spasi jadi underscore
+            payment_method_normalized = payment_method.lower().replace(" ", "_")
+
+            # valid payment methods
+            valid_payment_methods = ["cash", "qris", "bayar_nanti"]
+            if payment_method_normalized not in valid_payment_methods:
                 return Response.badRequest(request, message="Payment method tidak valid", messagetype="E")
 
-            if payment_method_lower == "cash":
+            # set order_status sesuai payment_method
+            if payment_method_normalized == "cash":
+                order_status = "in_progress"
+            elif payment_method_normalized == "qris":
+                order_status = "PENDING"
+            elif payment_method_normalized == "bayar_nanti":
                 order_status = "in_progress"
             else:
-                order_status = "PENDING"
+                order_status = "UNKNOWN"
 
             # ✅ Field opsional
             customer_name = json_data.get("customer_name", "")
@@ -264,7 +272,7 @@ def insert_order(request):
                 data=json.dumps({"order_id": order_id})
             )
 
-        # ✅ Return ke frontend supaya frontend bisa langsung panggil endpoint create_tripay_transaction
+        # ✅ Return ke frontend
         return Response.ok(
             data={
                 "order_id": order_id,
@@ -666,7 +674,6 @@ def laporan_keutungan_dashboard(request):
             return Response.ok(data=laporan_keutungan, message="List data telah tampil", messagetype="S")
 
     except Exception as e:
-        log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
 
 @jwt_required
