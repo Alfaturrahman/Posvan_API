@@ -2109,19 +2109,26 @@ def laporan_uang_keluar(request):
         if not store_id:
             return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
 
+        export_pdf = request.GET.get("export_pdf")
+
+        # Ambil data list pengeluaran
         list_pengeluaran = execute_query(
             """
-                SELECT * FROM vw_pengeluaran_semua WHERE store_id = %s;
+            SELECT * FROM vw_pengeluaran_semua WHERE store_id = %s;
             """,
-            params=(store_id,)  
+            params=(store_id,)
         )
 
+        if export_pdf == 'true':
+            # Panggil fungsi untuk generate PDF
+            return generate_laporan_uang_keluar_pdf(list_pengeluaran)
+
+        # Jika tidak ekspor, kembalikan data JSON
         return Response.ok(data=list_pengeluaran, message="List data telah tampil", messagetype="S")
 
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
-
 
 @jwt_required
 @csrf_exempt
