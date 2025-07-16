@@ -19,6 +19,7 @@ from posvana_api.utils.notification_helper import insert_notification
 from posvana_api.utils.tripay_service import *
 import time
 from posvana_api.utils.tripay_service import create_transaction, create_signature
+from posvana_api.utils.whatsapp_service import send_invoice
 
 
 
@@ -328,7 +329,7 @@ def create_tripay_transaction(request):
                 }
             ],
             "return_url": "https://yourwebsite.com/payment/success",
-            "callback_url": "https://f7d307745385.ngrok-free.app/api/storeowner/tripay_callback/",
+            "callback_url": "https://314e0f5fd62f.ngrok-free.app/api/storeowner/tripay_callback/",
             "expired_time": expired_time,
             "signature": create_signature(merchant_ref, amount)
         }
@@ -463,6 +464,9 @@ def tripay_callback(request):
         # Update the order status in the database
         update_data("tbl_orders", data={"order_status": new_order_status}, filters={"order_id": order_id})
         print(f"Tripay callback: Updated order {order_id} status to {new_order_status}")
+
+        send_invoice(order_id)
+        print(f"Tripay callback: Sent WhatsApp invoice for order {order_id}")
 
         return JsonResponse({"success": True}, status=200)
 
