@@ -152,8 +152,6 @@ EMAIL_USE_TLS = True  # atau False kalau pakai SSL
 EMAIL_USE_SSL = False  # True kalau pakai port 465
 EMAIL_HOST_USER = 'angkringanomahmu@gmail.com'
 EMAIL_HOST_PASSWORD = 'rbpcpktzmjkroxqq'  # Ini adalah App Password dari Google
-
-FONNTE_TOKEN = "B4xvS5hiofPbhJXDsNCA"
-
+FONNTE_TOKEN = os.getenv('FONNTE_TOKEN')
 
 
