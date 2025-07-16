@@ -328,7 +328,7 @@ def create_tripay_transaction(request):
                 }
             ],
             "return_url": "https://yourwebsite.com/payment/success",
-            "callback_url": "https://5dbb88ef35ab.ngrok-free.app/api/storeowner/tripay_callback/",
+            "callback_url": "https://f7d307745385.ngrok-free.app/api/storeowner/tripay_callback/",
             "expired_time": expired_time,
             "signature": create_signature(merchant_ref, amount)
         }
@@ -366,45 +366,70 @@ def create_tripay_transaction(request):
 
 @csrf_exempt
 def tripay_callback(request):
+    """
+    Handles Tripay payment callback notifications.
+
+    Verifies the callback signature, processes payment status,
+    and updates the corresponding order and payment records in the database.
+    """
     try:
+        # Log the raw request body for debugging purposes
         print("Tripay callback raw body:", request.body.decode())
         json_data = json.loads(request.body)
 
+        # Extract essential data from the Tripay callback
         reference = json_data.get("reference")
-        status = json_data.get("status")
+        status = json_data.get("status")  # e.g., "PAID", "UNPAID", "EXPIRED", "FAILED"
         amount = float(json_data.get("total_amount", 0))
         paid_at = json_data.get("paid_at")
         payment_method = json_data.get("payment_method")
         callback_signature = request.headers.get("X-Callback-Signature")
         raw_body = request.body
 
+        # Basic validation for crucial callback data
         if not reference or not status or not callback_signature:
-            return JsonResponse({"success": False, "message": "Invalid data"}, status=400)
+            print(f"Tripay callback: Missing reference, status, or signature. Data: {json_data}")
+            return JsonResponse({"success": False, "message": "Invalid data received"}, status=400)
 
+        # Import and verify the callback signature for security
         from posvana_api.utils.tripay_service import verify_callback_signature
-
         if not verify_callback_signature(raw_body, callback_signature):
+            print(f"Tripay callback: Invalid signature for reference {reference}")
             return JsonResponse({"success": False, "message": "Invalid signature"}, status=400)
 
-        order = get_data("tbl_orders", filters={"tripay_reference": reference})
-        if not order:
+        # Fetch the order associated with the Tripay reference
+        order_records = get_data("tbl_orders", filters={"tripay_reference": reference})
+        if not order_records:
+            print(f"Tripay callback: Order not found for tripay_reference {reference}")
             return JsonResponse({"success": False, "message": "Order not found"}, status=404)
-        order_id = order[0]['order_id']
+        
+        # Unpack the order data (assuming get_data returns a list of records)
+        order_info = order_records[0]
+        order_id = order_info['order_id']
+        is_pre_order = order_info.get('is_pre_order', False)
 
+        # Convert paid_at timestamp to datetime object
         paid_datetime = None
         if paid_at:
             try:
-                paid_datetime = timezone.datetime.fromtimestamp(int(paid_at))
-            except Exception:
-                paid_datetime = None
+                paid_datetime = timezone.datetime.fromtimestamp(int(paid_at), tz=timezone.get_current_timezone())
+            except Exception as e:
+                print(f"Tripay callback: Error converting paid_at {paid_at}: {e}")
+                # Keep paid_datetime as None if conversion fails
 
+        # Check and update/insert payment record
         existing_payment = get_data("tbl_payments", filters={"tripay_reference": reference})
         if existing_payment:
             update_data(
                 "tbl_payments",
-                data={"status": status, "paid_at": paid_datetime, "raw_callback": json.dumps(json_data)},
+                data={
+                    "status": status,
+                    "paid_at": paid_datetime,
+                    "raw_callback": json.dumps(json_data)
+                },
                 filters={"tripay_reference": reference}
             )
+            print(f"Tripay callback: Updated existing payment for reference {reference} to status {status}")
         else:
             insert_data(
                 "tbl_payments",
@@ -419,18 +444,36 @@ def tripay_callback(request):
                     "created_at": timezone.now()
                 }
             )
+            print(f"Tripay callback: Inserted new payment record for reference {reference} with status {status}")
 
-        new_status = "in_progress" if status == "PAID" else "pending"
-        update_data("tbl_orders", data={"order_status": new_status}, filters={"order_id": order_id})
+        # Determine the new order status based on payment status and order type
+        new_order_status = "pending" # Default status for all non-PAID or unmatched cases
+
+        if status == "PAID":
+            if is_pre_order:
+                new_order_status = "pending"  # Customer pesan online, perlu disiapkan dulu
+            else:
+                new_order_status = "in_progress"  # Kasir input langsung, sudah di tempat, langsung proses
+
+        # You might consider additional conditions for other Tripay statuses (e.g., "EXPIRED", "FAILED")
+        # For example:
+        # elif status in ["EXPIRED", "FAILED"]:
+        #     new_order_status = "cancelled" # Or "failed_payment" etc.
+
+        # Update the order status in the database
+        update_data("tbl_orders", data={"order_status": new_order_status}, filters={"order_id": order_id})
+        print(f"Tripay callback: Updated order {order_id} status to {new_order_status}")
 
         return JsonResponse({"success": True}, status=200)
 
     except Exception as e:
+        # Catch any unexpected errors, log them, and return a 500 response
         import traceback
         print("Tripay callback error:", traceback.format_exc())
+        # Assuming log_exception is defined to log to a file/service
         log_exception(request, e)
         return JsonResponse({"success": False, "message": str(e)}, status=500)
-
+    
 @csrf_exempt
 @jwt_required
 def check_payment_status(request):
