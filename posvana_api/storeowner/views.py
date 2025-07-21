@@ -329,7 +329,7 @@ def create_tripay_transaction(request):
                 }
             ],
             "return_url": "https://yourwebsite.com/payment/success",
-            "callback_url": "https://314e0f5fd62f.ngrok-free.app/api/storeowner/tripay_callback/",
+            "callback_url": "https://6cca503735ac.ngrok-free.app/api/storeowner/tripay_callback/",
             "expired_time": expired_time,
             "signature": create_signature(merchant_ref, amount)
         }
