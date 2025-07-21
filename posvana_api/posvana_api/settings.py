@@ -140,6 +140,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3001",  # Replace with your frontend URL
     "http://10.170.17.221:3000",  # Add your production frontend URL here
     'https://posvanapi-production.up.railway.app',  # ✅ Tambahkan https://
+    "https://omahmu-web-next-production.up.railway.app",  # ✅ tambahkan ini
+    "https://posvana-app.site",  # ✅ kalau nanti sudah pointing ke domain final
 ]
 
 MEDIA_URL = '/media/'
