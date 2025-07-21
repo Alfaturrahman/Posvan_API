@@ -1,1 +1,1 @@
-web: PYTHONPATH=posvana_api gunicorn posvana_api.posvana_api.wsgi:application --bind 0.0.0.0:$PORT
+web: gunicorn posvana_api.wsgi:application --chdir posvana_api --bind 0.0.0.0:$PORT
