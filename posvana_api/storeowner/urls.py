@@ -54,4 +54,7 @@ urlpatterns = [
     path('create_tripay_transaction/', views.create_tripay_transaction, name='create_tripay_transaction'),
     path('check_payment_status/', views.check_payment_status, name='check_payment_status'),
 
+    #list Fitur
+    path('check_fitur/', views.check_fitur, name='check_fitur'),
+
 ]

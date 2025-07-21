@@ -2211,3 +2211,26 @@ def detail_pengeluaran(request):
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
+
+#Cek Fitur
+@jwt_required
+@csrf_exempt
+def check_fitur(request):
+    try:
+        with transaction.atomic():
+            store_id = request.GET.get("store_id")
+
+            if not store_id:
+                return Response.badRequest(request, message="store_id harus disertakan", messagetype="E")
+
+            laporan_keutungan = execute_query(
+                """
+                    SELECT * FROM get_fitur_sidebar(%s);
+                """,
+                params=(store_id,)  
+            )
+
+            return Response.ok(data=laporan_keutungan, message="List data telah tampil", messagetype="S")
+
+    except Exception as e:
+        return Response.badRequest(request, message=str(e), messagetype="E")
