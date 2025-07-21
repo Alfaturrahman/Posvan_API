@@ -273,6 +273,8 @@ def insert_order(request):
                 data=json.dumps({"order_id": order_id})
             )
 
+            send_invoice(order_id)
+
         # ✅ Return ke frontend
         return Response.ok(
             data={

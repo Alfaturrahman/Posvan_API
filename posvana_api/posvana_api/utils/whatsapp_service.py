@@ -24,7 +24,7 @@ def send_invoice(order_id):
     pickup_date = order.get('pickup_date')
     pickup_time = order.get('pickup_time')
     remarks = order.get('remarks') or '-'
-    no_hp = "628829365374162"  # Hardcode sementara, ganti dengan nomor WA kamu sendiri
+    no_hp = order.get('no_hp') # Hardcode sementara, ganti dengan nomor WA kamu sendiri
 
     # Format tanggal & jam (pastikan sesuai format database, bisa pakai dateutil.parser.parse)
     pickup_date_str = pickup_date or '-'
@@ -35,10 +35,9 @@ def send_invoice(order_id):
 
     # Buat template pesan
     message = f"""
-🧺 *POSVANA PUNYA OIII*
-Head Office PURI AGUNG RESIDENCE BLOK D1/1
-WORK SHOP C3/8-9 SEI LANGKAI-SAGULUNG.
-📞 08117000709 / 0857 6028 3141
+🧺 *POSVANA APP*
+Bida Asri 1, Jl. Raja Isa No.31 blok a2, Baloi Permai, Batam Kota, Batam City, Riau Islands
+📞 085264099824
 
 🧾 *No. Nota:* {order_code}
 👤 *Pelanggan:* {customer_name}
@@ -54,10 +53,7 @@ Catatan: {remarks}
 📅 *Tanggal pesanan:* {date}
 ⏰ *Estimasi selesai:* {pickup_date_str} {pickup_time_str}
 
-🔗 *Cek status:*
-{status_link}
-
-✨ Powered by Laundry POS App
+✨ Powered by POSVANA APP
 """
 
     # Kirim ke API Fonnte
