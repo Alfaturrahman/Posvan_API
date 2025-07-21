@@ -31,7 +31,7 @@ def generate_laporan_keuntungan_pdf(data):
     header_y = height - 70
 
     col_positions = {
-        "product_id": 50,
+        "nomor": 50,
         "product_name": 100,
         "product_type": 220,
         "capital_price": 320,
@@ -51,7 +51,9 @@ def generate_laporan_keuntungan_pdf(data):
     y_position = header_y - 25
 
     for row in data:
-        p.drawString(col_positions["product_id"], y_position, str(row.get("product_id", "")))
+        print(row)
+
+        p.drawString(col_positions["nomor"], y_position, str(row.get("nomor", "")))
         p.drawString(col_positions["product_name"], y_position, str(row.get("product_name", "")))
         p.drawString(col_positions["product_type"], y_position, str(row.get("product_type", "")))
         p.drawString(col_positions["capital_price"], y_position, str(row.get("capital_price", "")))

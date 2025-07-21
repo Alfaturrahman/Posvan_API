@@ -329,7 +329,7 @@ def create_tripay_transaction(request):
                 }
             ],
             "return_url": "https://yourwebsite.com/payment/success",
-            "callback_url": "https://6cca503735ac.ngrok-free.app/api/storeowner/tripay_callback/",
+            "callback_url": "https://posvanapi-production.up.railway.app/api/storeowner/tripay_callback/",
             "expired_time": expired_time,
             "signature": create_signature(merchant_ref, amount)
         }
@@ -2114,7 +2114,8 @@ def laporan_uang_keluar(request):
         # Ambil data list pengeluaran
         list_pengeluaran = execute_query(
             """
-            SELECT * FROM vw_pengeluaran_semua WHERE store_id = %s;
+            SELECT * FROM vw_pengeluaran_semua WHERE store_id = %s
+                ORDER BY date DESC;
             """,
             params=(store_id,)
         )
