@@ -15,6 +15,7 @@ import os
 from posvana_api.utils.email_template import render_email_template
 from django.core.mail import EmailMessage
 from posvana_api.utils.notification_helper import insert_notification
+from datetime import datetime, date
 
 #Pengajuan Toko (SUPERADMIN)
 
@@ -666,12 +667,46 @@ def detail_pengguna_paket(request):
 
 # Dashboard
 
+# fungsi bantu untuk parsing date
+def parse_date_safe(date_str):
+    if not date_str:
+        return None
+    try:
+        # format "2025-04-12T00:00:00"
+        return datetime.strptime(str(date_str), "%Y-%m-%dT%H:%M:%S").date()
+    except ValueError:
+        try:
+            # format "2025-04-12"
+            return datetime.strptime(str(date_str), "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+def parse_date_safe(val):
+    """Support string ISO, string simple, atau langsung datetime object."""
+    if not val:
+        return None
+
+    # kalau sudah datetime object → ambil date-nya
+    if isinstance(val, datetime):
+        return val.date()
+
+    # kalau string
+    s = str(val)
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%f",  # ada millisecond
+                "%Y-%m-%dT%H:%M:%S",     # tanpa millisecond
+                "%Y-%m-%d"):             # hanya tanggal
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+
+    return None
+
 @jwt_required
 @csrf_exempt
 def dashboard_data_store(request):
     try:
         with transaction.atomic():
-            
             search = request.GET.get("search", None)
 
             list_toko_terdaftar = get_data(
@@ -680,33 +715,43 @@ def dashboard_data_store(request):
                 search_columns=["store_name"]
             )
 
-            jumlah_toko_terdaftar = count_data(
-                table_name="tbl_store_owners",
-            )
+            today = date.today()
 
-            jumlah_toko_terdaftar_aktif = count_data(
-                table_name="tbl_store_owners",
-                filters={"is_active" : True }
-            )
-            
-            jumlah_toko_terdaftar_tidak_aktif = count_data(
-                table_name="tbl_store_owners",
-                filters={"is_active" : False }
-            )
+            for toko in list_toko_terdaftar:
+                start_date = parse_date_safe(toko.get("start_date"))
+                end_date = parse_date_safe(toko.get("end_date"))
+                print("DEBUG:", toko["store_id"], end_date, today)
+
+                # kalau expired → auto tidak aktif
+                if end_date and end_date < today:
+                    toko["is_active"] = False
+
+                # kalau belum mulai → juga tidak aktif
+                if start_date and start_date > today:
+                    toko["is_active"] = False
+
+            # summary
+            jumlah_toko_terdaftar = len(list_toko_terdaftar)
+            jumlah_toko_terdaftar_aktif = sum(1 for t in list_toko_terdaftar if t["is_active"])
+            jumlah_toko_terdaftar_tidak_aktif = jumlah_toko_terdaftar - jumlah_toko_terdaftar_aktif
 
             dashboard_data_store = {
-                "List_toko_terdaftar" : list_toko_terdaftar ,
-                "jumlah_toko_terdaftar" : jumlah_toko_terdaftar ,
-                "jumlah_toko_terdaftar_aktif" : jumlah_toko_terdaftar_aktif ,
-                "jumlah_toko_terdaftar_tidak_aktif" : jumlah_toko_terdaftar_tidak_aktif ,
+                "List_toko_terdaftar": list_toko_terdaftar,
+                "jumlah_toko_terdaftar": jumlah_toko_terdaftar,
+                "jumlah_toko_terdaftar_aktif": jumlah_toko_terdaftar_aktif,
+                "jumlah_toko_terdaftar_tidak_aktif": jumlah_toko_terdaftar_tidak_aktif,
             }
 
-            return Response.ok(data=dashboard_data_store, message="List data telah tampil", messagetype="S")
+            return Response.ok(
+                data=dashboard_data_store,
+                message="List data telah tampil",
+                messagetype="S"
+            )
+
     except Exception as e:
         log_exception(request, e)
         return Response.badRequest(request, message=str(e), messagetype="E")
     
-
 # NOTIFIKASI
 @jwt_required
 @csrf_exempt
