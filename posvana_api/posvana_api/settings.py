@@ -142,6 +142,7 @@ CORS_ALLOWED_ORIGINS = [
     'https://posvanapi-production.up.railway.app',  # ✅ Tambahkan https://
     "https://omahmu-web-next-production.up.railway.app",  # ✅ tambahkan ini
     "https://posvana-app.site",  # ✅ kalau nanti sudah pointing ke domain final
+    "https://www.posvana.com",  # ✅ kalau nanti sudah pointing ke domain final
 ]
 
 MEDIA_URL = '/media/'
